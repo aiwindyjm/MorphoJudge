@@ -1,0 +1,85 @@
+name: morphojudge
+
+services:
+  web:
+    build:
+      context: .
+      target: development
+    ports:
+      - "127.0.0.1:${MORPHOJUDGE_PORT:-3017}:3000"
+    environment:
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - type: bind
+        source: ./app
+        target: /app/app
+        read_only: true
+      - type: bind
+        source: ./public
+        target: /app/public
+        read_only: true
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      start_period: 60s
+      retries: 5
+
+  preview:
+    profiles: ["preview"]
+    build:
+      context: .
+      target: runner
+    ports:
+      - "127.0.0.1:${MORPHOJUDGE_PREVIEW_PORT:-3018}:3000"
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(response => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 10s
+      start_period: 20s
+      retries: 3
+
+  daemon:
+    build:
+      context: .
+      target: daemon
+    environment:
+      MORPHOJUDGE_REPOSITORY_ROOTS: /fixtures
+    volumes:
+      # 只读源码挂载：容器内即时反映 engine 修改；只读 fixture 仓库。
+      - type: bind
+        source: ./engine
+        target: /engine
+        read_only: true
+      - type: bind
+        source: ./tests/fixtures
+        target: /fixtures
+        read_only: true
+      # 契约一致性测试需要读取冻结文档、生成的 schema 与 TS 镜像类型。
+      - type: bind
+        source: ./docs
+        target: /docs
+        read_only: true
+      - type: bind
+        source: ./packages
+        target: /packages
+        read_only: true
+      - type: bind
+        source: ./app/lib
+        target: /ts-lib
+        read_only: true
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
+      interval: 15s
+      timeout: 10s
+      start_period: 20s
+      retries: 5

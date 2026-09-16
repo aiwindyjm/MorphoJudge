@@ -1,0 +1,1446 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "definitions": {
+    "AnalysisSession": {
+      "additionalProperties": false,
+      "properties": {
+        "budget": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Budget"
+        },
+        "failure_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Reason"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "immutable_input": {
+          "$ref": "#/definitions/ImmutableAnalysisInput"
+        },
+        "resumable": {
+          "default": true,
+          "title": "Resumable",
+          "type": "boolean"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/definitions/StageRecord"
+          },
+          "title": "Stages",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/definitions/AnalysisStatus"
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "immutable_input"
+      ],
+      "title": "AnalysisSession",
+      "type": "object"
+    },
+    "AnalysisStatus": {
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "completed_with_limits",
+        "failed",
+        "cancelled"
+      ],
+      "title": "AnalysisStatus",
+      "type": "string"
+    },
+    "CoverageSummary": {
+      "additionalProperties": false,
+      "description": "Counts over SelectionDecisions. `completed` counts files whose analysis\nfinished (always 0 at selection time, reserved for later stages).\n`skipped` is the display alias of `excluded`. `updated_at` stays null for\ndeterministic pure runs (FR-010 reproducibility); callers may stamp it.",
+      "properties": {
+        "completed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Completed",
+          "type": "integer"
+        },
+        "excluded": {
+          "minimum": 0,
+          "title": "Excluded",
+          "type": "integer"
+        },
+        "failed": {
+          "minimum": 0,
+          "title": "Failed",
+          "type": "integer"
+        },
+        "limited": {
+          "minimum": 0,
+          "title": "Limited",
+          "type": "integer"
+        },
+        "partial": {
+          "title": "Partial",
+          "type": "boolean"
+        },
+        "selected": {
+          "minimum": 0,
+          "title": "Selected",
+          "type": "integer"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "total",
+        "selected",
+        "excluded",
+        "limited",
+        "failed",
+        "partial"
+      ],
+      "title": "CoverageSummary",
+      "type": "object"
+    },
+    "DiffFileEntry": {
+      "additionalProperties": false,
+      "description": "One changed file between base and target commits.\n\npath is the target-side path when it exists there, otherwise the\nbase-side path (deleted files). old_path is set only for renames/copies\nwhere the base-side name differs.",
+      "properties": {
+        "additions": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Additions"
+        },
+        "binary": {
+          "default": false,
+          "title": "Binary",
+          "type": "boolean"
+        },
+        "deletions": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deletions"
+        },
+        "is_submodule": {
+          "default": false,
+          "title": "Is Submodule",
+          "type": "boolean"
+        },
+        "is_symlink": {
+          "default": false,
+          "title": "Is Symlink",
+          "type": "boolean"
+        },
+        "line_map": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/definitions/LineMapHunk"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line Map"
+        },
+        "line_map_unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line Map Unavailable Reason"
+        },
+        "new_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "New Bytes"
+        },
+        "old_bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Old Bytes"
+        },
+        "old_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Old Path"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/DiffFileStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status"
+      ],
+      "title": "DiffFileEntry",
+      "type": "object"
+    },
+    "DiffFileStatus": {
+      "enum": [
+        "added",
+        "modified",
+        "deleted",
+        "renamed",
+        "copied",
+        "type_changed",
+        "unmerged"
+      ],
+      "title": "DiffFileStatus",
+      "type": "string"
+    },
+    "DiffResult": {
+      "additionalProperties": false,
+      "description": "Commit-to-commit diff. Untracked files never appear in files; they are\nreported separately per the frozen untracked policy (F1.5).",
+      "properties": {
+        "base_commit": {
+          "title": "Base Commit",
+          "type": "string"
+        },
+        "files": {
+          "items": {
+            "$ref": "#/definitions/DiffFileEntry"
+          },
+          "title": "Files",
+          "type": "array"
+        },
+        "policy_note": {
+          "default": "commit-to-commit diff only; working-tree untracked files are recorded informationally and never analyzed",
+          "title": "Policy Note",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "target_commit": {
+          "title": "Target Commit",
+          "type": "string"
+        },
+        "untracked": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Untracked",
+          "type": "array"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "base_commit",
+        "target_commit"
+      ],
+      "title": "DiffResult",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "enum": [
+        "REPOSITORY_NOT_FOUND",
+        "NOT_A_GIT_REPOSITORY",
+        "LINKED_WORKTREE_NOT_SUPPORTED",
+        "REF_NOT_FOUND",
+        "PATH_OUT_OF_ROOTS",
+        "PATH_TRAVERSAL_DETECTED",
+        "SYMLINK_ESCAPE",
+        "GIT_COMMAND_FAILED",
+        "INVALID_INPUT",
+        "INTERNAL_ERROR"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ErrorObject": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "$ref": "#/definitions/ErrorCode"
+        },
+        "details": {
+          "title": "Details",
+          "type": "object"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "retryable": {
+          "title": "Retryable",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable"
+      ],
+      "title": "ErrorObject",
+      "type": "object"
+    },
+    "ErrorResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/definitions/ErrorObject"
+        },
+        "schema_version": {
+          "default": "1.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorResponse",
+      "type": "object"
+    },
+    "EvidenceAnchor": {
+      "additionalProperties": false,
+      "description": "Traceable evidence location inside one snapshot.",
+      "properties": {
+        "commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Commit"
+        },
+        "end_line": {
+          "minimum": 1,
+          "title": "End Line",
+          "type": "integer"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        },
+        "side": {
+          "$ref": "#/definitions/EvidenceSide"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "snippet": {
+          "title": "Snippet",
+          "type": "string"
+        },
+        "source_kind": {
+          "minLength": 1,
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "start_line": {
+          "minimum": 1,
+          "title": "Start Line",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "id",
+        "snapshot_id",
+        "path",
+        "side",
+        "start_line",
+        "end_line",
+        "snippet",
+        "source_kind"
+      ],
+      "title": "EvidenceAnchor",
+      "type": "object"
+    },
+    "EvidenceSide": {
+      "enum": [
+        "old",
+        "new",
+        "context"
+      ],
+      "title": "EvidenceSide",
+      "type": "string"
+    },
+    "Explanation": {
+      "additionalProperties": false,
+      "description": "Model output, always separate from deterministic facts. Claims must\nreference existing evidence ids (validated at persistence time).",
+      "properties": {
+        "claims": {
+          "items": {
+            "$ref": "#/definitions/ExplanationClaim"
+          },
+          "minItems": 1,
+          "title": "Claims",
+          "type": "array"
+        },
+        "errors": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Errors"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "uncertainty": {
+          "title": "Uncertainty",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "model",
+        "claims",
+        "uncertainty"
+      ],
+      "title": "Explanation",
+      "type": "object"
+    },
+    "ExplanationClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/definitions/ExplanationClaimKind"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "evidence_ids",
+        "kind"
+      ],
+      "title": "ExplanationClaim",
+      "type": "object"
+    },
+    "ExplanationClaimKind": {
+      "enum": [
+        "restatement",
+        "inference",
+        "unknown"
+      ],
+      "title": "ExplanationClaimKind",
+      "type": "string"
+    },
+    "FileParseReport": {
+      "additionalProperties": false,
+      "description": "Parse status of one analyzed file inside a snapshot (contract-level).",
+      "properties": {
+        "issue_count": {
+          "minimum": 0,
+          "title": "Issue Count",
+          "type": "integer"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/ParseStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status",
+        "issue_count"
+      ],
+      "title": "FileParseReport",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "description": "A deterministic finding backed by evidence, or an explicitly unresolved one.",
+      "properties": {
+        "category": {
+          "$ref": "#/definitions/FindingCategory"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "explanation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explanation Id"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "impact": {
+          "$ref": "#/definitions/FindingImpact"
+        },
+        "kind": {
+          "$ref": "#/definitions/FindingKind"
+        },
+        "reliability": {
+          "$ref": "#/definitions/FindingReliability"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "unresolved_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unresolved Reason"
+        }
+      },
+      "required": [
+        "id",
+        "snapshot_id",
+        "category",
+        "kind",
+        "impact",
+        "reliability"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "FindingCategory": {
+      "enum": [
+        "behavior_network",
+        "behavior_shell",
+        "behavior_file",
+        "behavior_permission",
+        "dependency",
+        "consistency",
+        "structure"
+      ],
+      "title": "FindingCategory",
+      "type": "string"
+    },
+    "FindingImpact": {
+      "enum": [
+        "unknown",
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "FindingImpact",
+      "type": "string"
+    },
+    "FindingKind": {
+      "description": "Deterministic finding provenance. Model output never becomes a Finding kind.",
+      "enum": [
+        "fact",
+        "rule_hint"
+      ],
+      "title": "FindingKind",
+      "type": "string"
+    },
+    "FindingReliability": {
+      "enum": [
+        "deterministic",
+        "rule_based"
+      ],
+      "title": "FindingReliability",
+      "type": "string"
+    },
+    "ImmutableAnalysisInput": {
+      "additionalProperties": false,
+      "properties": {
+        "base_ref": {
+          "minLength": 1,
+          "title": "Base Ref",
+          "type": "string"
+        },
+        "repository_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "rules_version": {
+          "minLength": 1,
+          "title": "Rules Version",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "target_ref": {
+          "minLength": 1,
+          "title": "Target Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository_id",
+        "base_ref",
+        "target_ref",
+        "rules_version",
+        "snapshot_id"
+      ],
+      "title": "ImmutableAnalysisInput",
+      "type": "object"
+    },
+    "LineMapHunk": {
+      "additionalProperties": false,
+      "description": "Old\u2194new line ranges of one diff hunk (zero-context hunks, U0).",
+      "properties": {
+        "new_count": {
+          "minimum": 0,
+          "title": "New Count",
+          "type": "integer"
+        },
+        "new_start": {
+          "minimum": 0,
+          "title": "New Start",
+          "type": "integer"
+        },
+        "old_count": {
+          "minimum": 0,
+          "title": "Old Count",
+          "type": "integer"
+        },
+        "old_start": {
+          "minimum": 0,
+          "title": "Old Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "old_start",
+        "old_count",
+        "new_start",
+        "new_count"
+      ],
+      "title": "LineMapHunk",
+      "type": "object"
+    },
+    "MapEdge": {
+      "additionalProperties": false,
+      "description": "Deterministic relation edge with provenance. Candidate edges must keep\nresolution=candidate; they never upgrade without new deterministic evidence.\n\nProvenance (non-lossy source location):\n- file_path/line point at the call/reference site (1-based line);\n- manifest-derived edges (triggers/implements) carry file_path of the\n  mapping target; line is null only when no single line applies;\n- the file's parse status is reachable via SoftwareMap.file_reports\n  keyed by file_path, and the edge is bound to its snapshot_id.",
+      "properties": {
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "file_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File Path"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Line"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "relation": {
+          "$ref": "#/definitions/MapRelation"
+        },
+        "resolution": {
+          "$ref": "#/definitions/Resolution"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "target_id": {
+          "minLength": 1,
+          "title": "Target Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "snapshot_id",
+        "relation",
+        "source_id",
+        "target_id",
+        "resolution"
+      ],
+      "title": "MapEdge",
+      "type": "object"
+    },
+    "MapNode": {
+      "additionalProperties": false,
+      "description": "Deterministic graph node. No model free-text: explanations attach via ids.\n\n`note` carries deterministic provenance only (e.g. \"feature_mapping:human\"),\nnever model output.",
+      "properties": {
+        "end_line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Line"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "file_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "File Path"
+        },
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/definitions/MapNodeKind"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        },
+        "note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note"
+        },
+        "resolution": {
+          "$ref": "#/definitions/Resolution"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "start_line": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Line"
+        }
+      },
+      "required": [
+        "id",
+        "snapshot_id",
+        "kind",
+        "label",
+        "resolution"
+      ],
+      "title": "MapNode",
+      "type": "object"
+    },
+    "MapNodeKind": {
+      "enum": [
+        "page",
+        "feature",
+        "method",
+        "contract",
+        "data",
+        "external_service"
+      ],
+      "title": "MapNodeKind",
+      "type": "string"
+    },
+    "MapRelation": {
+      "enum": [
+        "triggers",
+        "implements",
+        "calls",
+        "accepts",
+        "returns",
+        "reads",
+        "writes",
+        "sends"
+      ],
+      "title": "MapRelation",
+      "type": "string"
+    },
+    "ParseStatus": {
+      "description": "File-level parse outcome; every relation edge must be traceable to\nthe parse status of the file its provenance points at.",
+      "enum": [
+        "parsed",
+        "parsed_with_errors",
+        "limited",
+        "error"
+      ],
+      "title": "ParseStatus",
+      "type": "string"
+    },
+    "Resolution": {
+      "enum": [
+        "resolved",
+        "candidate",
+        "unresolved"
+      ],
+      "title": "Resolution",
+      "type": "string"
+    },
+    "Review": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "minLength": 1,
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/ReviewState"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "state",
+        "updated_at"
+      ],
+      "title": "Review",
+      "type": "object"
+    },
+    "ReviewState": {
+      "enum": [
+        "unreviewed",
+        "needs-investigation",
+        "confirmed",
+        "dismissed"
+      ],
+      "title": "ReviewState",
+      "type": "string"
+    },
+    "SelectionDecision": {
+      "additionalProperties": false,
+      "description": "Deterministic per-file selection decision.\n\nrule_id/language/bytes are REQUIRED (non-null) whenever status is\nexcluded/limited/failed so every coverage gap is attributable.\npath is informational and may carry the offending path of a rejected\nentry (e.g. traversal attempts); only DiffFileEntry enforces the strict\nrepo-relative shape.",
+      "properties": {
+        "bytes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bytes"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Language"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "rule_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rule Id"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/definitions/SelectionStatus"
+        }
+      },
+      "required": [
+        "snapshot_id",
+        "path",
+        "status",
+        "reason"
+      ],
+      "title": "SelectionDecision",
+      "type": "object"
+    },
+    "SelectionStatus": {
+      "enum": [
+        "selected",
+        "excluded",
+        "limited",
+        "failed"
+      ],
+      "title": "SelectionStatus",
+      "type": "string"
+    },
+    "SnapshotIdentity": {
+      "additionalProperties": false,
+      "description": "Immutable identity of the analyzed input.\n\nsnapshot_id = sha256(\"morphojudge-snapshot-v1\\0\" + repository_id + \"\\0\"\n                     + base_commit + \"\\0\" + target_commit + \"\\0\"\n                     + rules_version)  \u2014 see docs/contract-freezes.md F1.5.",
+      "properties": {
+        "base_commit": {
+          "title": "Base Commit",
+          "type": "string"
+        },
+        "canonical_path": {
+          "minLength": 1,
+          "title": "Canonical Path",
+          "type": "string"
+        },
+        "repository_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "rules_version": {
+          "minLength": 1,
+          "title": "Rules Version",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "target_commit": {
+          "title": "Target Commit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository_id",
+        "canonical_path",
+        "base_commit",
+        "target_commit",
+        "snapshot_id",
+        "rules_version"
+      ],
+      "title": "SnapshotIdentity",
+      "type": "object"
+    },
+    "SnapshotReport": {
+      "additionalProperties": false,
+      "description": "Snapshot resolution result: identity plus boundary observations.\n\nworkspace_dirty does not change snapshot_id (identity binds commits).\nnotes carry explicit limitation flags such as submodule_present,\nlfs_filter_present, base_equals_target.",
+      "properties": {
+        "identity": {
+          "$ref": "#/definitions/SnapshotIdentity"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "working_tree": {
+          "items": {
+            "$ref": "#/definitions/WorkingTreeEntry"
+          },
+          "title": "Working Tree",
+          "type": "array"
+        },
+        "workspace_dirty": {
+          "title": "Workspace Dirty",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "identity",
+        "workspace_dirty"
+      ],
+      "title": "SnapshotReport",
+      "type": "object"
+    },
+    "SoftwareMap": {
+      "additionalProperties": false,
+      "description": "Deterministic software map for one snapshot (REL-001).\n\nnodes/edges are the graph; truncated means a build/query budget was hit\n(limits lists the named budgets). Bad edges stay in the list while the\nadjacency layer records them as errors. file_reports makes every edge's\nprovenance traceable to the parse status of its source file.",
+      "properties": {
+        "edges": {
+          "items": {
+            "$ref": "#/definitions/MapEdge"
+          },
+          "title": "Edges",
+          "type": "array"
+        },
+        "file_reports": {
+          "items": {
+            "$ref": "#/definitions/FileParseReport"
+          },
+          "title": "File Reports",
+          "type": "array"
+        },
+        "limits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limits",
+          "type": "array"
+        },
+        "nodes": {
+          "items": {
+            "$ref": "#/definitions/MapNode"
+          },
+          "title": "Nodes",
+          "type": "array"
+        },
+        "snapshot_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Id",
+          "type": "string"
+        },
+        "truncated": {
+          "default": false,
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "snapshot_id"
+      ],
+      "title": "SoftwareMap",
+      "type": "object"
+    },
+    "StageName": {
+      "enum": [
+        "git",
+        "selection",
+        "parse",
+        "behavior",
+        "dependency",
+        "report",
+        "explain"
+      ],
+      "title": "StageName",
+      "type": "string"
+    },
+    "StageRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "stage": {
+          "$ref": "#/definitions/StageName"
+        },
+        "status": {
+          "$ref": "#/definitions/StageStatus"
+        }
+      },
+      "required": [
+        "stage",
+        "status"
+      ],
+      "title": "StageRecord",
+      "type": "object"
+    },
+    "StageStatus": {
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "title": "StageStatus",
+      "type": "string"
+    },
+    "WorkingTreeEntry": {
+      "additionalProperties": false,
+      "description": "One `git status --porcelain` entry, informational only (never analyzed).",
+      "properties": {
+        "old_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Old Path"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "x": {
+          "maxLength": 1,
+          "minLength": 1,
+          "title": "X",
+          "type": "string"
+        },
+        "y": {
+          "maxLength": 1,
+          "minLength": 1,
+          "title": "Y",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "x",
+        "y"
+      ],
+      "title": "WorkingTreeEntry",
+      "type": "object"
+    }
+  },
+  "models": [
+    "AnalysisSession",
+    "AnalysisStatus",
+    "CoverageSummary",
+    "DiffFileEntry",
+    "DiffFileStatus",
+    "DiffResult",
+    "ErrorCode",
+    "ErrorObject",
+    "ErrorResponse",
+    "EvidenceAnchor",
+    "EvidenceSide",
+    "Explanation",
+    "ExplanationClaim",
+    "ExplanationClaimKind",
+    "FileParseReport",
+    "Finding",
+    "FindingCategory",
+    "FindingImpact",
+    "FindingKind",
+    "FindingReliability",
+    "ImmutableAnalysisInput",
+    "LineMapHunk",
+    "MapEdge",
+    "MapNode",
+    "MapNodeKind",
+    "MapRelation",
+    "ParseStatus",
+    "Resolution",
+    "Review",
+    "ReviewState",
+    "SelectionDecision",
+    "SelectionStatus",
+    "SnapshotIdentity",
+    "SnapshotReport",
+    "SoftwareMap",
+    "StageName",
+    "StageRecord",
+    "StageStatus",
+    "WorkingTreeEntry"
+  ],
+  "schema_version": "1.1.0",
+  "title": "MorphoJudge core contracts"
+}

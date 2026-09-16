@@ -1,0 +1,103 @@
+{
+  "fixture": "ts-web",
+  "description": "脱敏 TypeScript Web fixture：路由、页面事件、方法、API 契约、数据库读写与行为风险线索；仅作静态分析输入，永不执行。",
+  "never_executed": true,
+  "commits": {
+    "base": "eb214483d9e002c482ab631c42af88e3601f2220",
+    "target": "2542e8f3a72e3fbc54afb51b215b12cf45d49ab5",
+    "refs": {
+      "base": "HEAD~1",
+      "target": "HEAD"
+    }
+  },
+  "author": {
+    "name": "MorphoJudge Fixture",
+    "email": "fixture@morphojudge.invalid",
+    "base_date": "2026-01-10T08:00:00+00:00",
+    "target_date": "2026-01-11T08:00:00+00:00"
+  },
+  "expected_diff": {
+    "added": [
+      ".gitignore",
+      "assets/logo.png",
+      "scripts/deploy.sh",
+      "src/broken/invalid.ts",
+      "src/generated/big-table.ts",
+      "src/pages/admin/audit-log.tsx"
+    ],
+    "modified": [
+      "PRIVATE/internal-notes.md",
+      "config/credentials.json",
+      "src/db/queries.ts",
+      "src/lib/api-client.ts",
+      "src/pages/admin/page.tsx",
+      "src/pages/orders/page.tsx"
+    ],
+    "deleted": ["src/lib/legacy-format.ts"],
+    "renamed": [{"old_path": "src/lib/old-notify.ts", "new_path": "src/lib/notify.ts"}],
+    "binary": ["assets/logo.png"]
+  },
+  "required_entities": {
+    "routes": [
+      "src/pages/login/page.tsx",
+      "src/pages/orders/page.tsx",
+      "src/pages/orders/[id]/page.tsx",
+      "src/pages/admin/page.tsx",
+      "src/pages/admin/audit-log.tsx"
+    ],
+    "permission_modules": [
+      "src/lib/permissions.ts"
+    ],
+    "page_events": [
+      "submitLogin",
+      "handleCreateOrder",
+      "handleRefreshOrders",
+      "handleExportOrders",
+      "loadAdminDashboard",
+      "listAuditLog"
+    ],
+    "methods": [
+      "src/lib/api-client.ts#getJson",
+      "src/lib/api-client.ts#postJson",
+      "src/lib/api-client.ts#sendTelemetryEvent",
+      "src/lib/permissions.ts#isAdmin",
+      "src/lib/permissions.ts#requireRole",
+      "src/db/queries.ts#listOrders",
+      "src/db/queries.ts#getOrder",
+      "src/db/queries.ts#createOrder",
+      "src/db/queries.ts#deleteOrder"
+    ],
+    "api_contracts": ["src/lib/schema.ts"],
+    "database_access": ["src/db/database.ts", "src/db/queries.ts"],
+    "behavior_clues": {
+      "network": ["src/lib/api-client.ts"],
+      "shell": ["src/lib/shell.ts", "scripts/deploy.sh"],
+      "file": ["src/lib/files.ts"],
+      "permission": ["src/lib/permissions.ts", "src/pages/admin/page.tsx"]
+    },
+    "dynamic_or_unresolved": ["src/lib/dynamic.ts"],
+    "parse_failure": ["src/broken/invalid.ts"],
+    "unsupported_language": ["scripts/deploy.sh"]
+  },
+  "human_feature_mapping": [
+    {"page": "src/pages/login/page.tsx", "feature_id": "F-login", "feature": "用户登录", "confirmed_by": "human", "events": ["submitLogin"]},
+    {"page": "src/pages/orders/page.tsx", "feature_id": "F-orders-create", "feature": "创建订单", "confirmed_by": "human", "events": ["handleCreateOrder"]},
+    {"page": "src/pages/orders/page.tsx", "feature_id": "F-orders-export", "feature": "导出订单", "confirmed_by": "human", "events": ["handleExportOrders"]},
+    {"page": "src/pages/admin/page.tsx", "feature_id": "F-admin-dashboard", "feature": "管理面板", "confirmed_by": "human", "events": ["loadAdminDashboard"]},
+    {"page": "src/pages/admin/audit-log.tsx", "feature_id": "F-audit-log", "feature": "审计日志", "confirmed_by": "human", "events": ["listAuditLog"]}
+  ],
+  "selection_expectations": {
+    "excluded": {
+      "config/credentials.json": "SEL-CREDENTIAL-FILE",
+      "PRIVATE/internal-notes.md": "SEL-PRIVATE-PATH",
+      "assets/logo.png": "SEL-BINARY",
+      "scripts/deploy.sh": "SEL-UNSUPPORTED-LANGUAGE"
+    },
+    "selected": [
+      "src/broken/invalid.ts",
+      "src/generated/big-table.ts",
+      "src/lib/notify.ts",
+      "src/pages/admin/audit-log.tsx"
+    ]
+  }
+}

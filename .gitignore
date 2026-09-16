@@ -1,0 +1,38 @@
+# Local AI collaboration and private development material
+PRIVATE/
+*.private.md
+ai-chat/
+personal-plan/
+experiments/
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Local model weights, caches, and generated audit data
+models/*
+!models/README.md
+!models/.gitkeep
+.morphojudge/
+reports/
+*.log
+
+# Local tool caches and scan artifacts (may embed code snippets)
+.mimosa/
+.playwright-cli/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.idea/
+.vscode/
+*.swp
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+output/playwright/
