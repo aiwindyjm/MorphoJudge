@@ -24,15 +24,21 @@ Codex 默认不相信 Coding AI 的自报完成。每个任务执行 Requirement
 
 ## 验收命令
 
+共享执行约束见根 [AGENTS.md](../AGENTS.md)；以下是当前仓库可用入口，不代表全部验收等级已实现。
+
 ```powershell
+docker compose --profile fixtures run --rm --build fixture-setup
 docker compose up --build -d web daemon
-docker compose exec web pnpm exec tsc --noEmit
-docker compose exec web pnpm test
-docker compose exec daemon pytest
-pnpm exec playwright test
+docker compose exec -T web pnpm exec tsc --noEmit
+docker compose exec -T daemon pytest -q -o "addopts=-p no:cacheprovider"
+docker compose exec -T daemon pytest tests/test_analysis_slice.py -q
 ```
 
-命令按实际 Compose 服务调整；未运行项必须说明原因。
+按变更风险选择检查；最后一条是定向集成入口，已通过全套且没有新变更时不必重复。涉及 Docker 生产构建时执行 `docker compose --profile preview build preview`。
+
+当前 Web 没有 `pnpm test` 脚本或已配置的 Playwright 测试套件，因此删除旧版中这两个不可用入口。A4 需要用当前可用浏览器工具实际操作并记录结果；A5 需待真实 API、存储与 Web 联动具备后执行，不能用 fixture 引擎测试冒充 Web 全链路。未来新增自动化入口应随实现更新本节。
+
+使用独立 Compose 项目/端口验证时保留实际命令与数据来源。未运行、缺依赖、环境错误及适用等级尚无入口分别记录；不得改写为通过。文档/规则维护只做相关静态核对，不触发与行为无关的整套审计。
 
 ## 通过条件
 

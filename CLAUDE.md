@@ -1,7 +1,7 @@
-# MorphoJudge AI 快速入口
+# MorphoJudge — Claude / ZCODE 入口
 
-完整协作规则只有一份：[AGENTS.md](AGENTS.md)。Claude、Codex、Cursor、Gemini 及其他 AI 工具开始工作前都必须读取它；本文件不复制第二套规范。
+开始工作前完整读取根目录 [AGENTS.md](AGENTS.md)，再读取修改路径对应的局部规则。它是唯一共享协作入口；本文件不复制规则正文。
 
-每次会话先检查当前目录、Git 状态、相关文档、当天 `PRIVATE/conversations/YYYY-MM-DD.md`，然后说明目标、范围、依据和完成标准。完成会话时按 `AGENTS.md` 的格式追加当天私有账本。
+批次目标模式按 AGENTS.md 引用的 `docs/coding-agent-protocol.md` 执行：整批连续实现与验证后交付，等待独立验收。用户明确授权的范围内不逐 Task 请求接力。
 
-项目默认本地优先，分析时不执行目标仓库代码，不把模型输出当作授权或安全证明。私有账本不得进入 GitHub、Issue、PR、提示词或遥测。
+若客户端未自动加载链接文件，必须主动读取；无法读取时报告缺失，不声称规则已生效。会话结束前按根规则追加私有账本。
