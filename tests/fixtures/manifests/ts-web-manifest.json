@@ -2,6 +2,11 @@
   "fixture": "ts-web",
   "description": "脱敏 TypeScript Web fixture：路由、页面事件、方法、API 契约、数据库读写与行为风险线索；仅作静态分析输入，永不执行。",
   "never_executed": true,
+  "distribution": {
+    "bundle": "distribution/ts-web.bundle",
+    "sha256": "08167cd24a37567b9f70cfc5c33e9518503ff47b3f4364ed0009a1b46476df10",
+    "note": "Synthetic test data only; includes inert PRIVATE and credential placeholders to test exclusion. Never execute fixture scripts."
+  },
   "commits": {
     "base": "eb214483d9e002c482ab631c42af88e3601f2220",
     "target": "2542e8f3a72e3fbc54afb51b215b12cf45d49ab5",

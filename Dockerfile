@@ -53,6 +53,7 @@ RUN python -c "import subprocess, sys, tomllib; \
     deps = list(data['project']['dependencies']) + list(data['project']['optional-dependencies']['test']); \
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', *deps])"
 COPY engine ./
+COPY tools/setup-fixture.py /usr/local/lib/morphojudge-setup-fixture.py
 RUN useradd --system --uid 10001 --home /nonexistent --shell /usr/sbin/nologin morpho \
  && chmod -R a+rX /engine
 USER morpho

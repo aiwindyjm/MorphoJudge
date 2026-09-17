@@ -1,6 +1,6 @@
 # MorphoJudge 产品需求文档（PRD）
 
-版本：`0.23-draft`
+版本：`0.24-draft`
 状态：公开评审草案  
 更新日期：2026-09-16
 唯一产品需求基线：本文件。实现、Issue、架构和路线图必须与本文件联动；冲突时先记录冲突，不静默选择。
@@ -188,6 +188,7 @@ Review { finding_id, state, note, updated_at }
 | 0.21-draft | 2026-09-16 | 将实施方式确定为“ZCODE 按 Batch 一次性施工并停止 → Codex 独立审计 → 通过后进入下一 Batch”；补充批次状态、交付回执、停止门禁和任务映射，清理路线图中的未定义任务编号 |
 | 0.22-draft | 2026-09-16 | 根据实施可行性审计，将路线调整为 7 个可运行 Batch：首批包含 Docker daemon 骨架、TypeScript fixture、Git Snapshot、Diff 与 Coverage；修正任务依赖和未定义编号，确立批次交付后必须停止并等待 Codex 审计 |
 | 0.23-draft | 2026-09-16 | 按用户反馈改为完整能力闭环交付：Task ID 仅作批次内部追溯，取消逐 Task 人工交接；施工前集中确定边界矩阵，批次内持续实现与自测，交付后独立验收；返工按根因一次性处理，按变更范围复核，避免重复全局扫描 |
+| 0.24-draft | 2026-09-16 | 用户确认首次公开发布到 aiwindyjm/MorphoJudge：英文首页与简体中文 README、原创双语图解及真实示例界面截图；保留 MIT 和提交历史；以 Git bundle 和专用 Docker volume 提供可复现 fixture，排除真实私有资料；开源不等于完整 v0.1 或 Batch-03 独立验收通过 |
 | 0.21-draft | 2026-09-15 | 新增可执行实施文档体系：总体策略、版本路线图、任务规格、架构决策、契约冻结、Coding AI 协议和 Codex A0-A7 独立验收；明确真实纵向闭环优先于孤立模块交付 |
 
 ## 10. 联动索引
@@ -221,6 +222,10 @@ Review { finding_id, state, note, updated_at }
 PRD 与代码、测试、Issue 或路线图不一致时，优先修正文档联动关系，再实现功能。
 
 ## 11. Web 原型交互规格
+
+首次开源发布要求（0.24）：仓库为 `aiwindyjm/MorphoJudge`，公开、默认 `main`，不部署公网应用或发布正式版本标签。`README.md` 使用英文、`README.zh-CN.md` 使用简体中文，信息与状态一致。配图必须实际接入，截图来自现有原型并标记示例数据；不得用规划效果图冒充交付。原型、真实分析代码、独立验收与未来模型/API 能力分开说明。
+
+分发边界：原本机 fixture 保留，主仓库不再依赖无远端的 gitlink。只打包经检查的脱敏 fixture 两个 Git 提交及必要对象，发布 bundle、SHA-256 与 manifest。新增 `fixture-setup` Compose profile，只读 seed、无网络，写入独立命名卷；daemon 对该卷只读。恢复时校验包摘要、提交身份和工作树，重复执行不覆盖，异常停止。不执行 fixture 源码、hooks 或依赖。真实 `PRIVATE/` 不入镜像、卷或 Git；模拟私有路径仅为明确标记的测试数据。干净克隆必须能按 README 复现。
 
 原型位于仓库根目录 `app/`，使用假数据和本地 React 状态模拟完整流程；它不是已连接的 daemon。原型的视觉和交互是后续 API 实现的界面基线。
 

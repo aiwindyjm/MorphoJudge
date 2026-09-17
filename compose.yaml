@@ -57,9 +57,13 @@ services:
         source: ./engine
         target: /engine
         read_only: true
-      - type: bind
-        source: ./tests/fixtures
+      - type: volume
+        source: fixture-data
         target: /fixtures
+        read_only: true
+      - type: bind
+        source: ./tests/fixtures/manifests
+        target: /fixtures/manifests
         read_only: true
       # 契约一致性测试需要读取冻结文档、生成的 schema 与 TS 镜像类型。
       - type: bind
@@ -83,3 +87,33 @@ services:
       timeout: 10s
       start_period: 20s
       retries: 5
+
+  fixture-setup:
+    profiles: ["fixtures"]
+    build:
+      context: .
+      target: daemon
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    entrypoint: ["python", "/usr/local/lib/morphojudge-setup-fixture.py"]
+    healthcheck:
+      disable: true
+    volumes:
+      - type: bind
+        source: ./tests/fixtures/distribution
+        target: /seed
+        read_only: true
+      - type: bind
+        source: ./tests/fixtures/manifests
+        target: /manifests
+        read_only: true
+      - type: volume
+        source: fixture-data
+        target: /fixture-store
+
+volumes:
+  fixture-data:

@@ -1,12 +1,29 @@
-# 文档图表
+# README artwork / 文档素材
 
-README 与 `docs/architecture.md` 中的 Mermaid 图表就是当前版本的正式配图，随文档一起维护，能够准确表达流程、组件和数据边界，不依赖生成图片中的文字准确性。
+All eight SVGs are original project artwork, distributed under the repository's
+MIT license. They use editable text and vector geometry; no external service,
+remote font, stock image or image-generation prompt is required.
 
-已完成的图表包括：
+| Files (`en` / `zh-CN`) | Purpose |
+| --- | --- |
+| `hero.*.svg` | Project banner / 项目横幅 |
+| `workflow.*.svg` | Human-led and agent-assisted development / 开发流程变化 |
+| `evidence.*.svg` | Conceptual relationships and source anchors / 关系与证据 |
+| `local-first.*.svg` | Target data boundary, including planned model integration / 目标架构 |
 
-- 人工编码到 AI Coding 的流程变化
-- AI Agent → MorphoJudge → 可信交付流程
-- 本地分析引擎、解析器、行为分析、依赖扫描、模型解释与报告的数据流
-- v0.1 的模块边界与人工复核路径
+Regenerate with `tools/render-readme-artwork.py` using Python 3 (standard library
+only). This is optional artwork maintenance, not a prerequisite to run the
+project. Both READMEs embed the corresponding language version.
 
-本目录只记录已经接入文档的图表说明；当前没有悬空的图片引用或未完成的素材任务。
+The butterfly logo was supplied by the project initiator for MorphoJudge:
+source `assets/logo/logo-source-2048.png`, display copy `public/logo-96.png`.
+It is not presented as independently designed by an AI agent.
+
+`assets/screenshots/feature-trace.png` and `dependency-graph.png` are unmodified
+1440×960 browser captures of the Chinese Web prototype on 2026-09-16.
+They show hand-authored demonstration data, not connected-repository analysis.
+The visible model controls are prototype UI backed by a Fake Provider.
+The images do not certify backend functionality.
+
+图解为概念说明，截图为真实原型；两者不混用。没有效率百分比、性能结论、
+未实现界面或待生成的占位配图。

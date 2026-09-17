@@ -36,3 +36,6 @@ node_modules/
 out/
 *.tsbuildinfo
 output/playwright/
+
+# Generated local fixture repo; distributed through a reviewed Git bundle.
+/tests/fixtures/ts-web/

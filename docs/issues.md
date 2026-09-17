@@ -52,6 +52,8 @@ PRD 0.20 联动：页面→功能采用代码事实 + 人工确认；v0.1 纵向
 
 PRD 0.23 联动：MJ-004/005/007/015/018 的下一步按 Batch-03 完整能力交付，具体规格及 B03-01～10 验收矩阵见 implementation-tasks.md。BEH-001/DEP-001/EVD-001/ANL-001/TEST-001/SEC-001 是内部追溯项，不逐项等待 Codex。SEC-001 本批仅检查分析安全，API/模型安全在对应批次补齐。当前是施工规格，不能记作功能已实现。
 
+PRD 0.24 发布联动：MJ-008 完成双语 README 图解与真实原型截图，MJ-010 补 fixture bundle 恢复服务与干净克隆验证；发布到 aiwindyjm/MorphoJudge，沿用 MIT。fixture-setup 无网络、只处理脱敏 Git 对象，daemon 只读卷。开源发布不代表 Batch-03 获独立验收，也不宣称真实 Web/API/模型闭环已完成。
+
 
 ```text
 标题：
