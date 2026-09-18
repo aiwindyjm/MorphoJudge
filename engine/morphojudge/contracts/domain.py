@@ -22,8 +22,11 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # 契约版本历史（F1.4）：1.0.0 = Batch-01 首发；1.1.0 = Batch-02 累计向后兼容追加
-# （MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）。
-SCHEMA_VERSION = "1.1.0"
+# （MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；
+# 1.2.0 = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码）；
+# 1.3.0 = Batch-04-R1 兼容追加（API DTO 进入公开 Schema/TS、ROUTE_NOT_FOUND、
+# AnalysisOptions 等，见 contract-freezes.md Freeze 4 R1 登记）。
+SCHEMA_VERSION = "1.3.0"
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 _RULE_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$")

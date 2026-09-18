@@ -41,9 +41,10 @@ def test_error_codes_match_frozen_doc(freeze_doc: str):
 
 
 def test_schema_version_is_frozen(freeze_doc: str):
-    # F1.4：Batch-02 累计兼容追加后 minor 递增；历史版本保留登记
-    assert SCHEMA_VERSION == "1.1.0"
-    assert "1.0.0" in freeze_doc and "1.1.0" in freeze_doc
+    # F1.4：Batch-04-R1 兼容追加 API DTO 后 minor 递增；历史版本保留登记
+    assert SCHEMA_VERSION == "1.3.0"
+    for version in ("1.0.0", "1.1.0", "1.2.0", "1.3.0"):
+        assert version in freeze_doc
 
 
 def test_layer_flow_is_frozen(freeze_doc: str):

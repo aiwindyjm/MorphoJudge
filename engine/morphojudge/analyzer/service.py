@@ -5,11 +5,17 @@ selection (both sides) → parse/IR (both sides) → behavior rules →
 dependency rules → consistency rules → evidence resolution → findings →
 impact paths → stage coverage & limits.
 
+For resumable checkpoints (ANL-003, Batch-04-R1) the same deterministic flow
+is exposed as three composable stage functions — ``collect_map_inputs`` →
+``evaluate_rules`` → ``assemble_analysis_result`` — and ``analyze_snapshot``
+is exactly their composition. No logic is duplicated between the one-shot
+entry point and the staged one; identical inputs yield identical results
+and IDs through either path.
+
 Internal aggregate only: AnalysisResult is NOT a frozen API/persistence
 contract (that happens in later batches). Determinism: no clocks, no
-randomness — identical inputs yield identical results and IDs.
-Failures are isolated per stage/file/rule: a broken file, lockfile or rule
-never silently swallows the other results.
+randomness. Failures are isolated per stage/file/rule: a broken file,
+lockfile or rule never silently swallows the other results.
 """
 
 from __future__ import annotations
@@ -71,6 +77,33 @@ class StageCoverage:
 
 
 @dataclass
+class MapInputs:
+    """parse 阶段产物：diff 与两侧 SoftwareMap 构建结果。
+
+    worker 把它序列化为 parse checkpoint；恢复时直接重建，不重跑解析。
+    """
+
+    diff: object
+    base_res: object
+    target_res: object
+
+
+@dataclass
+class RuleOutputs:
+    """rules 阶段产物：规则、证据、finding、影响路径与错误记录。"""
+
+    signals: list = field(default_factory=list)
+    behavior_notes: list[str] = field(default_factory=list)
+    analyzer_errors: list[str] = field(default_factory=list)
+    evidence_resolutions: list[EvidenceResolution] = field(default_factory=list)
+    anchors_by_id: dict[str, EvidenceAnchor] = field(default_factory=dict)
+    dependency_report: DependencyReport | None = None
+    consistency_records: list = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
+    impact_paths: list[ImpactPath] = field(default_factory=list)
+
+
+@dataclass
 class AnalysisResult:
     snapshot: SnapshotReport
     diff: object
@@ -101,20 +134,43 @@ def _commit_for_side(snapshot: SnapshotReport, side: EvidenceSide) -> str:
     return snapshot.identity.target_commit
 
 
-def analyze_snapshot(
+def collect_map_inputs(
     repo: Path,
     snapshot: SnapshotReport,
     manifest: dict,
     rules: SelectionRules | None = None,
+) -> MapInputs:
+    """parse 阶段：diff + 两侧 selection/parse/SoftwareMap。"""
+
+    diff = build_diff_result(repo, snapshot)
+    target_res = build_software_map(repo, snapshot, manifest, rules, commit=snapshot.identity.target_commit)
+    base_res = build_software_map(repo, snapshot, manifest, rules, commit=snapshot.identity.base_commit)
+    return MapInputs(diff=diff, base_res=base_res, target_res=target_res)
+
+
+def evaluate_rules(
+    repo: Path,
+    snapshot: SnapshotReport,
+    inputs: MapInputs,
+    permission_modules: list[str],
+    rules: SelectionRules | None = None,
     *,
     impact_max_depth: int = 10,
     impact_max_nodes: int = 1000,
-) -> AnalysisResult:
+) -> RuleOutputs:
+    """rules 阶段：行为/依赖/一致性规则 → 证据 → findings → 影响路径。
+
+    输入只来自 parse checkpoint 的确定性产物；permission_modules 由 worker
+    从 parse checkpoint 传入（恢复时不重新读取 manifest，输入不漂移）。
+    """
+
     rules = rules or SelectionRules()
     identity = snapshot.identity
     sid = identity.snapshot_id
+    diff = inputs.diff
+    base_res = inputs.base_res
+    target_res = inputs.target_res
 
-    diff = build_diff_result(repo, snapshot)
     # 行为对齐需要 base(old_path) -> target(new path) 方向
     rename_map = {
         entry.old_path: entry.path
@@ -122,44 +178,29 @@ def analyze_snapshot(
         if entry.old_path and entry.status.value == "renamed"
     }
 
-    target_res = build_software_map(repo, snapshot, manifest, rules, commit=identity.target_commit)
-    base_res = build_software_map(repo, snapshot, manifest, rules, commit=identity.base_commit)
-
-    permission_modules: list[str] = list(
-        manifest.get("required_entities", {}).get("permission_modules", [])
-    )
-
-    signals: list[behavior_rules.BehaviorSignal] = []
-    behavior_notes: list[str] = []
-    analyzer_errors: list[str] = []
-    evidence_resolutions: list[EvidenceResolution] = []
-    anchors_by_id: dict[str, EvidenceAnchor] = {}
+    outputs = RuleOutputs()
 
     # --- 行为规则 ---
     try:
-        signals, behavior_notes = behavior_rules.collect_behavior_signals(
+        outputs.signals, outputs.behavior_notes = behavior_rules.collect_behavior_signals(
             base_res, target_res, rename_map, permission_modules
         )
     except Exception as exc:  # noqa: BLE001 — 单规则失败不吞掉其他阶段
-        analyzer_errors.append(f"behavior_rules_failed:{type(exc).__name__}")
+        outputs.analyzer_errors.append(f"behavior_rules_failed:{type(exc).__name__}")
 
-    dependency_report: DependencyReport | None = None
     try:
-        dependency_report = dependency_rules.analyze_dependencies(
+        outputs.dependency_report = dependency_rules.analyze_dependencies(
             repo, identity.base_commit, identity.target_commit, sid, rules
         )
     except Exception as exc:  # noqa: BLE001
-        analyzer_errors.append(f"dependency_rules_failed:{type(exc).__name__}")
+        outputs.analyzer_errors.append(f"dependency_rules_failed:{type(exc).__name__}")
 
-    consistency_records: list[consistency_rules.ConsistencyRecord] = []
     try:
-        consistency_records = consistency_rules.analyze_consistency(target_res)
+        outputs.consistency_records = consistency_rules.analyze_consistency(target_res)
     except Exception as exc:  # noqa: BLE001
-        analyzer_errors.append(f"consistency_rules_failed:{type(exc).__name__}")
+        outputs.analyzer_errors.append(f"consistency_rules_failed:{type(exc).__name__}")
 
     resolver = EvidenceResolver(repo, sid)
-    findings: list[Finding] = []
-    impact_paths: list[ImpactPath] = []
 
     def resolve_or_record(request: EvidenceRequest | None, unresolved_reason: str | None) -> EvidenceResolution:
         if request is None:
@@ -177,13 +218,13 @@ def analyze_snapshot(
             )
         else:
             resolution = resolver.resolve(request)
-        evidence_resolutions.append(resolution)
+        outputs.evidence_resolutions.append(resolution)
         if resolution.status == EvidenceStatus.RESOLVED and resolution.anchor is not None:
-            anchors_by_id.setdefault(resolution.anchor.id, resolution.anchor)
+            outputs.anchors_by_id.setdefault(resolution.anchor.id, resolution.anchor)
         return resolution
 
     # --- 行为 findings ---
-    for signal in signals:
+    for signal in outputs.signals:
         request = EvidenceRequest(
             commit=_commit_for_side(snapshot, signal.evidence_side),
             side=signal.evidence_side,
@@ -212,8 +253,8 @@ def analyze_snapshot(
             rule_id=signal.rule_id,
             unresolved_reason=unresolved_reason,
         )
-        findings.append(finding)
-        impact_paths.append(
+        outputs.findings.append(finding)
+        outputs.impact_paths.append(
             _build_impact_path(
                 target_res=target_res,
                 origin_id=signal.target_node_id,
@@ -225,8 +266,8 @@ def analyze_snapshot(
         )
 
     # --- 依赖 findings ---
-    if dependency_report is not None:
-        for change in dependency_report.changes:
+    if outputs.dependency_report is not None:
+        for change in outputs.dependency_report.changes:
             side = EvidenceSide.OLD if change.change == "removed" else EvidenceSide.NEW
             commit = _commit_for_side(snapshot, side)
             if change.evidence_line is not None:
@@ -247,7 +288,7 @@ def analyze_snapshot(
                 evidence_ids = [resolution.anchor.id]
             else:
                 unresolved_reason = f"evidence_unresolved:{resolution.reason}"
-            findings.append(
+            outputs.findings.append(
                 Finding(
                     id=_finding_id(sid, change.rule_id, change.change, change.source, change.name, str(change.evidence_line)),
                     snapshot_id=sid,
@@ -262,7 +303,7 @@ def analyze_snapshot(
             )
 
     # --- 一致性 findings（仅 mismatch）---
-    for record in consistency_records:
+    for record in outputs.consistency_records:
         if record.outcome != "mismatch":
             continue
         request = EvidenceRequest(
@@ -280,7 +321,7 @@ def analyze_snapshot(
             evidence_ids = [resolution.anchor.id]
         else:
             unresolved_reason = f"evidence_unresolved:{resolution.reason}"
-        findings.append(
+        outputs.findings.append(
             Finding(
                 id=_finding_id(sid, record.rule_id or "CONS", record.path, record.method_name, str(record.evidence_line)),
                 snapshot_id=sid,
@@ -294,43 +335,85 @@ def analyze_snapshot(
             )
         )
 
-    # --- 阶段覆盖 ---
+    return outputs
+
+
+def assemble_analysis_result(
+    snapshot: SnapshotReport,
+    inputs: MapInputs,
+    outputs: RuleOutputs,
+) -> AnalysisResult:
+    """组装最终 AnalysisResult：阶段覆盖与限制汇总（不新增分析算法）。"""
+
+    target_res = inputs.target_res
+    base_res = inputs.base_res
+
     stage_coverage = _build_stage_coverage(
         target_res=target_res,
-        signals=signals,
-        behavior_notes=behavior_notes,
-        dependency_report=dependency_report,
-        consistency_records=consistency_records,
-        impact_paths=impact_paths,
-        analyzer_errors=analyzer_errors,
+        signals=outputs.signals,
+        behavior_notes=outputs.behavior_notes,
+        dependency_report=outputs.dependency_report,
+        consistency_records=outputs.consistency_records,
+        impact_paths=outputs.impact_paths,
+        analyzer_errors=outputs.analyzer_errors,
     )
 
     limits: list[str] = []
     limits.extend(base_res.notes)
     limits.extend(target_res.notes)
-    limits.extend(behavior_notes)
-    if dependency_report is not None:
-        limits.extend(dependency_report.notes)
-    limits.extend(analyzer_errors)
+    limits.extend(outputs.behavior_notes)
+    if outputs.dependency_report is not None:
+        limits.extend(outputs.dependency_report.notes)
+    limits.extend(outputs.analyzer_errors)
 
     return AnalysisResult(
         snapshot=snapshot,
-        diff=diff,
+        diff=inputs.diff,
         selection_decisions=target_res.decisions,
         selection_summary=target_res.coverage,
         base_map=base_res.software_map,
         target_map=target_res.software_map,
-        findings=sorted(findings, key=lambda f: f.id),
-        evidence=sorted(anchors_by_id.values(), key=lambda a: a.id),
-        evidence_resolutions=sorted(evidence_resolutions, key=lambda r: (r.request.path, r.request.start_line, r.status.value)),
-        impact_paths=impact_paths,
-        dependency_report=dependency_report,
-        consistency_records=consistency_records,
-        behavior_notes=behavior_notes,
+        findings=sorted(outputs.findings, key=lambda f: f.id),
+        evidence=sorted(outputs.anchors_by_id.values(), key=lambda a: a.id),
+        evidence_resolutions=sorted(
+            outputs.evidence_resolutions,
+            key=lambda r: (r.request.path, r.request.start_line, r.status.value),
+        ),
+        impact_paths=outputs.impact_paths,
+        dependency_report=outputs.dependency_report,
+        consistency_records=outputs.consistency_records,
+        behavior_notes=outputs.behavior_notes,
         stage_coverage=stage_coverage,
         limits=sorted(set(limits)),
-        analyzer_errors=analyzer_errors,
+        analyzer_errors=outputs.analyzer_errors,
     )
+
+
+def analyze_snapshot(
+    repo: Path,
+    snapshot: SnapshotReport,
+    manifest: dict,
+    rules: SelectionRules | None = None,
+    *,
+    impact_max_depth: int = 10,
+    impact_max_nodes: int = 1000,
+) -> AnalysisResult:
+    """One-shot composition of the staged deterministic pipeline."""
+
+    inputs = collect_map_inputs(repo, snapshot, manifest, rules)
+    permission_modules: list[str] = list(
+        manifest.get("required_entities", {}).get("permission_modules", [])
+    )
+    outputs = evaluate_rules(
+        repo,
+        snapshot,
+        inputs,
+        permission_modules,
+        rules,
+        impact_max_depth=impact_max_depth,
+        impact_max_nodes=impact_max_nodes,
+    )
+    return assemble_analysis_result(snapshot, inputs, outputs)
 
 
 def _build_impact_path(

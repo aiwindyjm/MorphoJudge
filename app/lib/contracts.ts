@@ -14,8 +14,10 @@
  */
 
 // 契约版本历史（F1.4）：1.0.0 = Batch-01 首发；1.1.0 = Batch-02 累计向后兼容追加
-// （MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）。
-export const SCHEMA_VERSION = '1.1.0';
+// （MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；
+// 1.2.0 = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码）；
+// 1.3.0 = Batch-04-R1 兼容追加（API DTO 入公开契约、ROUTE_NOT_FOUND、AnalysisOptions）。
+export const SCHEMA_VERSION = '1.3.0';
 
 // ---------------------------------------------------------------------------
 // Enums (single-line literal unions; keep values byte-identical with Python)
@@ -108,7 +110,14 @@ export type ErrorCode =
   | 'SYMLINK_ESCAPE'
   | 'GIT_COMMAND_FAILED'
   | 'INVALID_INPUT'
-  | 'INTERNAL_ERROR';
+  | 'INTERNAL_ERROR'
+  | 'ANALYSIS_NOT_FOUND'
+  | 'ANALYSIS_NOT_READY'
+  | 'ANALYSIS_CONFLICT'
+  | 'REPOSITORY_NOT_REGISTERED'
+  | 'FINDING_NOT_FOUND'
+  | 'EVIDENCE_NOT_FOUND'
+  | 'ROUTE_NOT_FOUND';
 
 // ---------------------------------------------------------------------------
 // Snapshot identity (GIT-001)
@@ -339,4 +348,167 @@ export interface ErrorObject {
 export interface ErrorResponse {
   readonly schema_version: string;
   readonly error: ErrorObject;
+}
+
+// ---------------------------------------------------------------------------
+// API transport contracts (Batch-04-R1 / Freeze 4 登记)
+// 每个响应携带 schema_version；可用性显式标注 partial，无产物不是空结论。
+// ---------------------------------------------------------------------------
+
+export interface Availability {
+  readonly schema_version: string;
+  readonly analysis_status: AnalysisStatus;
+  readonly artifacts: 'complete' | 'partial';
+  readonly note: string;
+}
+
+export interface AnalysisOptions {
+  readonly impact_max_depth: number;
+  readonly impact_max_nodes: number;
+}
+
+export interface CreateAnalysisRequest {
+  readonly repository_id: string;
+  readonly base_ref: string;
+  readonly target_ref: string;
+  readonly rules_version: string;
+  readonly options: AnalysisOptions | null;
+}
+
+export interface RepositoryInfo {
+  readonly schema_version: string;
+  readonly repository_id: string;
+  readonly name: string;
+  readonly registered_at: string;
+}
+
+export interface RepositoriesPage {
+  readonly schema_version: string;
+  readonly items: RepositoryInfo[];
+}
+
+export interface AnalysisCounts {
+  readonly findings: number | null;
+  readonly evidence: number | null;
+}
+
+export interface AnalysisResponse {
+  readonly schema_version: string;
+  readonly analysis_id: string;
+  readonly status: AnalysisStatus;
+  readonly repository_id: string;
+  readonly base_ref: string;
+  readonly target_ref: string;
+  readonly rules_version: string;
+  readonly snapshot_id: string | null;
+  readonly resumable: boolean;
+  readonly cancel_requested: boolean;
+  readonly created_at: string;
+  readonly updated_at: string;
+  readonly failure_reason: string | null;
+  readonly stages: StageRecord[];
+  readonly counts: AnalysisCounts;
+}
+
+export interface StageCoverageItem {
+  readonly schema_version: string;
+  readonly stage: string;
+  readonly status: string;
+  readonly completed: number;
+  readonly failed: number;
+  readonly limited: number;
+  readonly notes: string[];
+}
+
+export interface FindingListItem {
+  readonly schema_version: string;
+  readonly finding: Finding;
+  readonly review_state: ReviewState;
+}
+
+export interface FindingDetail {
+  readonly schema_version: string;
+  readonly finding: Finding;
+  readonly review_state: ReviewState;
+  readonly evidence: EvidenceAnchor[];
+}
+
+export interface FindingsPage {
+  readonly schema_version: string;
+  readonly items: FindingListItem[];
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
+  readonly availability: Availability;
+}
+
+export interface CoverageResponse {
+  readonly schema_version: string;
+  readonly summary: CoverageSummary;
+  readonly decisions: SelectionDecision[];
+  readonly stage_coverage: StageCoverageItem[];
+  readonly limits: string[];
+  readonly manifest: Record<string, unknown> | null;
+  readonly total: number;
+  readonly limit: number;
+  readonly offset: number;
+  readonly availability: Availability;
+}
+
+export interface MapResponse {
+  readonly schema_version: string;
+  readonly side: string;
+  readonly snapshot_id: string;
+  readonly map: SoftwareMap;
+  readonly availability: Availability;
+}
+
+export interface ImpactPathItem {
+  readonly schema_version: string;
+  readonly origin_id: string;
+  readonly direction: string;
+  readonly node_ids: string[];
+  readonly edge_ids: string[];
+  readonly evidence_ids: string[];
+  readonly resolution: string;
+  readonly truncated: boolean;
+  readonly stop_reason: string | null;
+  readonly limit_note: string | null;
+}
+
+export interface ImpactPathsPage {
+  readonly schema_version: string;
+  readonly items: ImpactPathItem[];
+  readonly total: number;
+  readonly availability: Availability;
+}
+
+export interface SummaryResponse {
+  readonly schema_version: string;
+  readonly analysis_id: string;
+  readonly snapshot_id: string | null;
+  readonly base_commit: string | null;
+  readonly target_commit: string | null;
+  readonly rules_version: string | null;
+  readonly status: AnalysisStatus;
+  readonly counts: AnalysisCounts;
+  readonly stage_coverage: StageCoverageItem[];
+  readonly limits: string[];
+  readonly manifest: Record<string, unknown> | null;
+  readonly evidence_resolution_failures: Record<string, unknown>[];
+  readonly diff_files: DiffFileEntry[];
+  readonly availability: Availability;
+}
+
+export interface ReviewRequest {
+  readonly finding_id: string;
+  readonly state: ReviewState;
+  readonly note: string;
+}
+
+export interface ReviewsPage {
+  readonly schema_version: string;
+  readonly items: Review[];
+  readonly total: number;
+  readonly availability: Availability;
 }

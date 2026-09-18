@@ -45,13 +45,13 @@ Persistence 只写入上游产物；API 只读写 Persistence；Web 只调用 AP
 }
 ```
 
-- `code`：ASCII 大写蛇形稳定枚举（见 `packages/contracts/schema.json` 的 `ErrorCode`）。Batch-01 起始集合：`REPOSITORY_NOT_FOUND`、`NOT_A_GIT_REPOSITORY`、`LINKED_WORKTREE_NOT_SUPPORTED`、`REF_NOT_FOUND`、`PATH_OUT_OF_ROOTS`、`PATH_TRAVERSAL_DETECTED`、`SYMLINK_ESCAPE`、`GIT_COMMAND_FAILED`、`INVALID_INPUT`、`INTERNAL_ERROR`。
+- `code`：ASCII 大写蛇形稳定枚举（见 `packages/contracts/schema.json` 的 `ErrorCode`）。Batch-01 起始集合：`REPOSITORY_NOT_FOUND`、`NOT_A_GIT_REPOSITORY`、`LINKED_WORKTREE_NOT_SUPPORTED`、`REF_NOT_FOUND`、`PATH_OUT_OF_ROOTS`、`PATH_TRAVERSAL_DETECTED`、`SYMLINK_ESCAPE`、`GIT_COMMAND_FAILED`、`INVALID_INPUT`、`INTERNAL_ERROR`。Batch-04 追加（兼容新增，不改旧 code 语义）：`ANALYSIS_NOT_FOUND`（404）、`ANALYSIS_NOT_READY`（409，产物未提交时查询结果）、`ANALYSIS_CONFLICT`（409，幂等键复用于不同请求或对终态分析取消/重跑）、`REPOSITORY_NOT_REGISTERED`（404，API 只接受登记仓库 ID）、`FINDING_NOT_FOUND`（404）、`EVIDENCE_NOT_FOUND`（404）。Batch-04-R1 追加：`ROUTE_NOT_FOUND`（404，未知路由/方法统一错误 envelope）。
 - `message`：面向用户的可读说明，不得包含密钥、绝对宿主路径以外的敏感数据；`details` 是结构化补充（dict），可为空对象。
 - `retryable`：调用方是否可原样重试。新增 code 只能追加，不能改写旧 code 的语义。
 
 ### F1.4 schema_version
 
-- 全局契约版本常量随 `packages/contracts/schema.json` 顶层 `schema_version` 字段发布。版本历史：`1.0.0` = Batch-01 首发；`1.1.0` = Batch-02 累计向后兼容追加（MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）。
+- 全局契约版本常量随 `packages/contracts/schema.json` 顶层 `schema_version` 字段发布。版本历史：`1.0.0` = Batch-01 首发；`1.1.0` = Batch-02 累计向后兼容追加（MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；`1.2.0` = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码，无字段删除或语义变更）；`1.3.0` = Batch-04-R1 兼容追加（API 传输 DTO 进入公开 Schema/TS 契约与漂移验证、`ROUTE_NOT_FOUND`、`AnalysisOptions`，见 Freeze 4 R1 登记）。
 - 语义：向后兼容新增字段 → minor 递增；删除/改语义 → major 递增且必须提交 ACR。JSON Schema 由 Pydantic 模型生成，TS 类型与其保持字段/枚举一致；所有本地 `$ref` 必须可在根 Schema 解析（生成器含同名冲突不变量与引用完整性测试）。
 
 ### F1.5 ID 与可复现语义
@@ -74,9 +74,30 @@ Persistence 只写入上游产物；API 只读写 Persistence；Web 只调用 AP
 
 冻结 SQLite 表、外键、索引、迁移版本和分析状态机。旧快照不可被新运行覆盖。
 
+### Freeze 3 登记（Batch-04 / DB-001）
+
+- 迁移登记：`schema_migrations(version, name, applied_at)`，每个迁移在**显式事务**（BEGIN IMMEDIATE…COMMIT，覆盖 DDL/DML/版本登记）内应用；中途失败整体回滚并保留旧库；比当前构建更新的 schema 版本拒绝写入。当前版本 2（`0001_initial`、`0002_integrity_and_manifest`：reviews 复合外键重建 + analyses 增列）。
+- 表集合：`repositories`（仓库登记，repository_id = sha256(canonical_path)，按 F1.5）、`analyses`（分析会话：`idempotency_key` 唯一、`request_hash`、`status`、`resumable`、`cancel_requested`、`failure_reason`、`snapshot_id`、`manifest_status`、`manifest_digest`、`options_json`）、`stages`（阶段记录，(analysis_id, stage) 主键，stage 取值即 F1.2 冻结枚举）、`stage_outputs`（阶段 checkpoint 输出 JSON，恢复入口）、`snapshots`（SnapshotReport 缓存，INSERT OR IGNORE，不可变）、`analysis_results`（每分析完整结果文档 JSON）、`maps`（base/target 两侧 SoftwareMap）、`decisions`（SelectionDecision 行）、`findings`（按 analysis_id 命名空间，`evidence_ids_json` + 索引 snapshot/category/rule）、`evidence`（EvidenceAnchor 行）、`reviews`（人工复核，(analysis_id, finding_id) 主键 + 指向 findings 的复合外键）。
+- 引用完整性（R1）：review→finding 由复合外键强制；finding→evidence 引用在 report 事务内校验存在性，悬空引用拒绝写入且事务回滚。
+- 不覆盖语义：findings/evidence/maps/decisions 均以 `analysis_id` 为命名空间，重跑同一 snapshot 产生新 analysis，不改写旧行；`snapshots` 只插入不更新；终态分析（completed*/failed/cancelled）不被迟到状态迁移改写（CAS）。
+- 分析状态机：`queued → running → completed | completed_with_limits | failed | cancelled`；`cancelled` 为终态；失败保留已完成阶段、关闭 running 阶段并保存 failure_reason（脱敏：绝对路径替换为 `<path>`）；`running` 中断的分析在 daemon 重启时从最后 checkpoint 恢复。
+- 事务边界（R1 修正为四 checkpoint）：worker 的 git / parse（选择+解析+两侧图）/ rules（行为+依赖+一致性+证据+finding+影响）/ report 各自单事务提交；report 事务包含 findings+evidence+analysis_results+终态；取消与终态在同一 report 事务内线性化（取消标记先落库则取消获胜，产物保留）。
+
 ## Freeze 4：V0.1.5-alpha
 
 冻结 HTTP request/response/error schema、分页、过滤、幂等键和取消语义。Web 只能适配，不得自行改变 API 事实。
+
+### Freeze 4 登记（Batch-04 / API-001 + API-002；Batch-04-R1 修正）
+
+> R1 变更记录：独立审计（B04-R1-04/05/06）判定 Batch-04 原登记的"结果仅终态可读"语义收缩了原始规格、"map 为正式端点"偏离指定 URL、响应缺 schema_version、`/repositories` 暴露内部 canonical_path。以下登记为按修复指令（zcode-fix-prompt.md）纠正后的版本；纠正理由与原始偏差见 PRIVATE 审计记录。
+
+- 端点：`POST /v1/analyses`（创建，请求体 `{repository_id, base_ref, target_ref, rules_version?, options?}`，未知字段拒绝；只接受登记 repository_id，不接受路径/命令）；`GET /v1/analyses/{id}`（状态+阶段）；`POST /v1/analyses/{id}/cancel`；`GET /v1/analyses/{id}/coverage`（选择决策分页 + 全阶段 stage_coverage + limits + manifest 状态）；`GET /v1/analyses/{id}/software-map?side=base|target`（正式端点；`/map` 为 Batch-04 兼容别名）；`GET /v1/analyses/{id}/impact-paths`；`GET /v1/analyses/{id}/summary`（输入身份、diff 文件清单、阶段覆盖、限制、证据定位失败、manifest 绑定）；`GET /v1/analyses/{id}/findings`（分页+过滤）；`GET /v1/analyses/{id}/findings/{finding_id}`（含证据锚点）；`GET /v1/analyses/{id}/evidence/{evidence_id}`；`GET|POST /v1/analyses/{id}/reviews`；`GET /v1/repositories`（仅 repository_id/name/registered_at，不含内部路径）。
+- 响应包络（R1）：所有响应 DTO 携带 `schema_version`；分页响应 `{items, total, limit, offset}`（findings 按 finding_id、decisions 按 path 稳定排序）；结果响应携带 `availability {analysis_status, artifacts: complete|partial, note}`。
+- 结果就绪语义（R1 修正）：按**已提交产物**判定——map 端点需要 parse checkpoint 的 maps 行；findings/evidence/impact-paths/summary/reviews/coverage 全量信息需要 rules checkpoint 文档。产物存在即可读（含 failed/cancelled 分析的已提交产物，availability 标 partial）；无产物返回 409 `ANALYSIS_NOT_READY`（details 携带 status 与缺失项），绝不返回可被误读为"无发现/安全"的空集合。
+- 选项契约（R1）：`options {impact_max_depth: 1..50=10, impact_max_nodes: 1..5000=1000}` 是本批唯一支持的选项集；options 进入幂等键派生与 `analyses.options_json`，是恢复输入的一部分。其余 options 未提供、未实现。
+- 幂等键：可选请求头 `Idempotency-Key`（1..200 字符，无控制字符）；缺省时由服务端从请求内容确定性派生（sha256(canonical payload)）。同键同请求 → 返回既有分析（200，响应头 `Idempotency-Replayed: true`）；同键不同请求 → 409 `ANALYSIS_CONFLICT`。`analysis_id = "analysis:" + sha256(idempotency_key)[:24]`。
+- 取消语义：对非终态分析设置协作式取消标记；尚未开始执行的排队任务直接转 `cancelled`；已开始任务在阶段边界停止，且取消与终态在 report 事务内线性化（标记先落库则取消获胜、产物保留）。对终态分析取消 → 409 `ANALYSIS_CONFLICT`。
+- 错误隐私（R1）：校验错误只返回字段位置与错误类型，不回显 input/ctx 原文；未知路由/方法返回统一错误 envelope（`ROUTE_NOT_FOUND`/404）；`/repositories` 不输出仓库内部 canonical_path；worker failure_reason 经脱敏（绝对路径 → `<path>`，长度截断）。
 
 ## Freeze 5：V0.1.6-alpha
 

@@ -391,3 +391,132 @@ def build_software_map(
         routes_by_path={route.path: route for route in ex.extract_routes(parsed_by_path)},
         jsdoc_by_node_id=jsdoc_by_node_id,
     )
+
+
+# ---------------------------------------------------------------------------
+# BuildResult checkpoint 序列化（ANL-003 / Batch-04-R1）
+# parse checkpoint 需要完整重建 BuildResult，恢复时跳过解析；这里只做
+# 数据搬移，不引入新的推导逻辑。
+# ---------------------------------------------------------------------------
+
+
+def dump_build_state(result: BuildResult) -> dict:
+    """BuildResult → JSON 可序列化 dict（纯 asdict/model_dump）。"""
+
+    from dataclasses import asdict
+
+    return {
+        "software_map": result.software_map.model_dump(mode="json"),
+        "coverage": result.coverage.model_dump(mode="json"),
+        "decisions": [decision.model_dump(mode="json") for decision in result.decisions],
+        "parse_reports": [report.model_dump(mode="json") for report in result.parse_reports],
+        "notes": list(result.notes),
+        "symbols_by_path": {
+            path: [asdict(symbol) for symbol in symbols]
+            for path, symbols in result.symbols_by_path.items()
+        },
+        "routes_by_path": {
+            path: asdict(route) for path, route in result.routes_by_path.items()
+        },
+        "jsdoc_by_node_id": {
+            node_id: asdict(info) for node_id, info in result.jsdoc_by_node_id.items()
+        },
+    }
+
+
+def _symbol_from_state(data: dict) -> ex.Symbol:
+    return ex.Symbol(
+        name=data["name"],
+        path=data["path"],
+        kind=data["kind"],
+        start_line=data["start_line"],
+        end_line=data["end_line"],
+        exported=data["exported"],
+        params=[
+            ex.Param(
+                name=param["name"],
+                type_text=param["type_text"],
+                line=param.get("line"),
+                type_refs=tuple(
+                    ex.TypeReference(
+                        name=ref["name"],
+                        start_byte=ref["start_byte"],
+                        end_byte=ref["end_byte"],
+                        line=ref["line"],
+                    )
+                    for ref in param.get("type_refs") or ()
+                ),
+            )
+            for param in data.get("params") or ()
+        ],
+        return_type=data.get("return_type"),
+        return_type_line=data.get("return_type_line"),
+        return_type_refs=tuple(
+            ex.TypeReference(
+                name=ref["name"],
+                start_byte=ref["start_byte"],
+                end_byte=ref["end_byte"],
+                line=ref["line"],
+            )
+            for ref in data.get("return_type_refs") or ()
+        ),
+        enclosing_class=data.get("enclosing_class"),
+        body_fingerprint=data.get("body_fingerprint", ""),
+    )
+
+
+def _jsdoc_from_state(data: dict) -> ex.JSDocInfo:
+    return ex.JSDocInfo(
+        start_line=data["start_line"],
+        end_line=data["end_line"],
+        params=tuple(
+            ex.JSDocParam(
+                name=param["name"],
+                type_text=param.get("type_text"),
+                line=param["line"],
+            )
+            for param in data.get("params") or ()
+        ),
+        returns_type=data.get("returns_type"),
+        returns_line=data.get("returns_line"),
+        pure_declared=data.get("pure_declared", False),
+    )
+
+
+def load_build_state(data: dict) -> BuildResult:
+    """dump_build_state 的逆运算；输入来自本服务持久化的 checkpoint。"""
+
+    from .contracts.domain import (
+        CoverageSummary as _CoverageSummary,
+        SelectionDecision as _SelectionDecision,
+        SoftwareMap as _SoftwareMap,
+    )
+
+    software_map = _SoftwareMap.model_validate(data["software_map"])
+    coverage = _CoverageSummary.model_validate(data["coverage"])
+    decisions = [_SelectionDecision.model_validate(item) for item in data.get("decisions") or []]
+    parse_reports = [
+        FileParseReport.model_validate(item) for item in data.get("parse_reports") or []
+    ]
+    symbols_by_path = {
+        path: [_symbol_from_state(symbol) for symbol in symbols]
+        for path, symbols in (data.get("symbols_by_path") or {}).items()
+    }
+    routes_by_path = {
+        path: ex.RouteDecl(pattern=route["pattern"], path=route["path"])
+        for path, route in (data.get("routes_by_path") or {}).items()
+    }
+    jsdoc_by_node_id = {
+        node_id: _jsdoc_from_state(info)
+        for node_id, info in (data.get("jsdoc_by_node_id") or {}).items()
+    }
+    return BuildResult(
+        software_map=software_map,
+        coverage=coverage,
+        decisions=decisions,
+        parse_reports=parse_reports,
+        notes=list(data.get("notes") or []),
+        symbols_by_path=symbols_by_path,
+        routes_by_path=routes_by_path,
+        jsdoc_by_node_id=jsdoc_by_node_id,
+    )

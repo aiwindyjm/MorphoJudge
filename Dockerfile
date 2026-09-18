@@ -55,7 +55,8 @@ RUN python -c "import subprocess, sys, tomllib; \
 COPY engine ./
 COPY tools/setup-fixture.py /usr/local/lib/morphojudge-setup-fixture.py
 RUN useradd --system --uid 10001 --home /nonexistent --shell /usr/sbin/nologin morpho \
- && chmod -R a+rX /engine
+ && chmod -R a+rX /engine \
+ && mkdir -p /data && chown morpho:morpho /data
 USER morpho
 EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=10s --start-period=20s --retries=5 \

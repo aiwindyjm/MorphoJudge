@@ -1,6 +1,156 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "definitions": {
+    "AnalysisCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence"
+        },
+        "findings": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Findings"
+        }
+      },
+      "title": "AnalysisCounts",
+      "type": "object"
+    },
+    "AnalysisOptions": {
+      "additionalProperties": false,
+      "description": "\u672c\u6279\u652f\u6301\u7684\u663e\u5f0f\u5206\u6790\u9009\u9879\uff08\u8d85\u51fa\u8303\u56f4\u7684\u9009\u9879\u4e00\u5f8b\u88ab\u62d2\u7edd\uff09\u3002\n\n\u4e24\u4e2a\u9884\u7b97\u76f4\u63a5\u8fdb\u5165\u786e\u5b9a\u6027\u5f71\u54cd\u904d\u5386\uff1b\u6301\u4e45\u5316\u5728 analyses.options_json\uff0c\n\u662f\u6062\u590d\u8f93\u5165\u7684\u4e00\u90e8\u5206\u3002",
+      "properties": {
+        "impact_max_depth": {
+          "default": 10,
+          "maximum": 50,
+          "minimum": 1,
+          "title": "Impact Max Depth",
+          "type": "integer"
+        },
+        "impact_max_nodes": {
+          "default": 1000,
+          "maximum": 5000,
+          "minimum": 1,
+          "title": "Impact Max Nodes",
+          "type": "integer"
+        }
+      },
+      "title": "AnalysisOptions",
+      "type": "object"
+    },
+    "AnalysisResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_id": {
+          "title": "Analysis Id",
+          "type": "string"
+        },
+        "base_ref": {
+          "title": "Base Ref",
+          "type": "string"
+        },
+        "cancel_requested": {
+          "default": false,
+          "title": "Cancel Requested",
+          "type": "boolean"
+        },
+        "counts": {
+          "$ref": "#/definitions/AnalysisCounts"
+        },
+        "created_at": {
+          "title": "Created At",
+          "type": "string"
+        },
+        "failure_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Reason"
+        },
+        "repository_id": {
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "resumable": {
+          "default": true,
+          "title": "Resumable",
+          "type": "boolean"
+        },
+        "rules_version": {
+          "title": "Rules Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Id"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/definitions/StageRecord"
+          },
+          "title": "Stages",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/definitions/AnalysisStatus"
+        },
+        "target_ref": {
+          "title": "Target Ref",
+          "type": "string"
+        },
+        "updated_at": {
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "analysis_id",
+        "status",
+        "repository_id",
+        "base_ref",
+        "target_ref",
+        "rules_version",
+        "created_at",
+        "updated_at"
+      ],
+      "title": "AnalysisResponse",
+      "type": "object"
+    },
     "AnalysisSession": {
       "additionalProperties": false,
       "properties": {
@@ -75,6 +225,109 @@
       "title": "AnalysisStatus",
       "type": "string"
     },
+    "Availability": {
+      "additionalProperties": false,
+      "description": "\u7ed3\u679c\u53ef\u7528\u6027\uff1a\u4ea7\u7269\u662f\u5426\u5b8c\u6574\u3001\u5206\u6790\u5904\u4e8e\u4ec0\u4e48\u72b6\u6001\u3002\n\nartifacts=complete \u8868\u793a\u8be5\u7aef\u70b9\u6240\u9700\u4ea7\u7269\u5df2\u5168\u90e8\u63d0\u4ea4\uff1bpartial \u8868\u793a\u5206\u6790\n\u672a\u5230\u5b8c\u6210\u6001\uff08failed/cancelled/running\uff09\u4f46\u5df2\u63d0\u4ea4\u4ea7\u7269\u53ef\u8bfb\u3002\u65e0\u4ea7\u7269\u4e0d\u662f\n\u7a7a\u7684\u5b89\u5168\u7ed3\u8bba\u2014\u2014\u6ca1\u6709\u4ea7\u7269\u65f6\u7aef\u70b9\u8fd4\u56de 409\uff0c\u4e0d\u8fd4\u56de\u7a7a\u96c6\u5408\u3002",
+      "properties": {
+        "analysis_status": {
+          "$ref": "#/definitions/AnalysisStatus"
+        },
+        "artifacts": {
+          "pattern": "^(complete|partial)$",
+          "title": "Artifacts",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "analysis_status",
+        "artifacts"
+      ],
+      "title": "Availability",
+      "type": "object"
+    },
+    "CoverageResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/definitions/Availability"
+        },
+        "decisions": {
+          "items": {
+            "$ref": "#/definitions/SelectionDecision"
+          },
+          "title": "Decisions",
+          "type": "array"
+        },
+        "limit": {
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "limits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limits",
+          "type": "array"
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manifest"
+        },
+        "offset": {
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stage_coverage": {
+          "items": {
+            "$ref": "#/definitions/StageCoverageItem"
+          },
+          "title": "Stage Coverage",
+          "type": "array"
+        },
+        "summary": {
+          "$ref": "#/definitions/CoverageSummary"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "summary",
+        "total",
+        "limit",
+        "offset",
+        "availability"
+      ],
+      "title": "CoverageResponse",
+      "type": "object"
+    },
     "CoverageSummary": {
       "additionalProperties": false,
       "description": "Counts over SelectionDecisions. `completed` counts files whose analysis\nfinished (always 0 at selection time, reserved for later stages).\n`skipped` is the display alias of `excluded`. `updated_at` stays null for\ndeterministic pure runs (FR-010 reproducibility); callers may stamp it.",
@@ -144,6 +397,55 @@
         "partial"
       ],
       "title": "CoverageSummary",
+      "type": "object"
+    },
+    "CreateAnalysisRequest": {
+      "additionalProperties": false,
+      "description": "POST /v1/analyses body \u2014 registered repository ids only, never paths.",
+      "properties": {
+        "base_ref": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Base Ref",
+          "type": "string"
+        },
+        "options": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/AnalysisOptions"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repository_id": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "rules_version": {
+          "default": "morphojudge-v0.1",
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Rules Version",
+          "type": "string"
+        },
+        "target_ref": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Target Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository_id",
+        "base_ref",
+        "target_ref"
+      ],
+      "title": "CreateAnalysisRequest",
       "type": "object"
     },
     "DiffFileEntry": {
@@ -342,7 +644,14 @@
         "SYMLINK_ESCAPE",
         "GIT_COMMAND_FAILED",
         "INVALID_INPUT",
-        "INTERNAL_ERROR"
+        "INTERNAL_ERROR",
+        "ANALYSIS_NOT_FOUND",
+        "ANALYSIS_NOT_READY",
+        "ANALYSIS_CONFLICT",
+        "REPOSITORY_NOT_REGISTERED",
+        "FINDING_NOT_FOUND",
+        "EVIDENCE_NOT_FOUND",
+        "ROUTE_NOT_FOUND"
       ],
       "title": "ErrorCode",
       "type": "string"
@@ -382,7 +691,7 @@
           "$ref": "#/definitions/ErrorObject"
         },
         "schema_version": {
-          "default": "1.1.0",
+          "default": "1.3.0",
           "title": "Schema Version",
           "type": "string"
         }
@@ -709,6 +1018,35 @@
       "title": "FindingCategory",
       "type": "string"
     },
+    "FindingDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "items": {
+            "$ref": "#/definitions/EvidenceAnchor"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "finding": {
+          "$ref": "#/definitions/Finding"
+        },
+        "review_state": {
+          "$ref": "#/definitions/ReviewState",
+          "default": "unreviewed"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding"
+      ],
+      "title": "FindingDetail",
+      "type": "object"
+    },
     "FindingImpact": {
       "enum": [
         "unknown",
@@ -728,6 +1066,28 @@
       "title": "FindingKind",
       "type": "string"
     },
+    "FindingListItem": {
+      "additionalProperties": false,
+      "properties": {
+        "finding": {
+          "$ref": "#/definitions/Finding"
+        },
+        "review_state": {
+          "$ref": "#/definitions/ReviewState",
+          "default": "unreviewed"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding"
+      ],
+      "title": "FindingListItem",
+      "type": "object"
+    },
     "FindingReliability": {
       "enum": [
         "deterministic",
@@ -735,6 +1095,49 @@
       ],
       "title": "FindingReliability",
       "type": "string"
+    },
+    "FindingsPage": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/definitions/Availability"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/definitions/FindingListItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "limit": {
+          "minimum": 1,
+          "title": "Limit",
+          "type": "integer"
+        },
+        "offset": {
+          "minimum": 0,
+          "title": "Offset",
+          "type": "integer"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "limit",
+        "offset",
+        "availability"
+      ],
+      "title": "FindingsPage",
+      "type": "object"
     },
     "ImmutableAnalysisInput": {
       "additionalProperties": false,
@@ -777,6 +1180,116 @@
         "snapshot_id"
       ],
       "title": "ImmutableAnalysisInput",
+      "type": "object"
+    },
+    "ImpactPathItem": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "title": "Direction",
+          "type": "string"
+        },
+        "edge_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Edge Ids",
+          "type": "array"
+        },
+        "evidence_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Ids",
+          "type": "array"
+        },
+        "limit_note": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit Note"
+        },
+        "node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Node Ids",
+          "type": "array"
+        },
+        "origin_id": {
+          "title": "Origin Id",
+          "type": "string"
+        },
+        "resolution": {
+          "title": "Resolution",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stop_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Reason"
+        },
+        "truncated": {
+          "title": "Truncated",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "origin_id",
+        "direction",
+        "resolution",
+        "truncated"
+      ],
+      "title": "ImpactPathItem",
+      "type": "object"
+    },
+    "ImpactPathsPage": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/definitions/Availability"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/definitions/ImpactPathItem"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "availability"
+      ],
+      "title": "ImpactPathsPage",
       "type": "object"
     },
     "LineMapHunk": {
@@ -1034,6 +1547,38 @@
       "title": "MapRelation",
       "type": "string"
     },
+    "MapResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/definitions/Availability"
+        },
+        "map": {
+          "$ref": "#/definitions/SoftwareMap"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "side": {
+          "title": "Side",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "title": "Snapshot Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "side",
+        "snapshot_id",
+        "map",
+        "availability"
+      ],
+      "title": "MapResponse",
+      "type": "object"
+    },
     "ParseStatus": {
       "description": "File-level parse outcome; every relation edge must be traceable to\nthe parse status of the file its provenance points at.",
       "enum": [
@@ -1044,6 +1589,55 @@
       ],
       "title": "ParseStatus",
       "type": "string"
+    },
+    "RepositoriesPage": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/definitions/RepositoryInfo"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "title": "RepositoriesPage",
+      "type": "object"
+    },
+    "RepositoryInfo": {
+      "additionalProperties": false,
+      "description": "\u4ed3\u5e93\u767b\u8bb0\u4fe1\u606f\u2014\u2014\u5185\u90e8 canonical_path \u4e0d\u51fa API\uff08B04-R1-06\uff09\u3002",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "registered_at": {
+          "title": "Registered At",
+          "type": "string"
+        },
+        "repository_id": {
+          "title": "Repository Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository_id",
+        "name",
+        "registered_at"
+      ],
+      "title": "RepositoryInfo",
+      "type": "object"
     },
     "Resolution": {
       "enum": [
@@ -1083,6 +1677,30 @@
       "title": "Review",
       "type": "object"
     },
+    "ReviewRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "finding_id": {
+          "minLength": 1,
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "note": {
+          "default": "",
+          "title": "Note",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/definitions/ReviewState"
+        }
+      },
+      "required": [
+        "finding_id",
+        "state"
+      ],
+      "title": "ReviewRequest",
+      "type": "object"
+    },
     "ReviewState": {
       "enum": [
         "unreviewed",
@@ -1092,6 +1710,37 @@
       ],
       "title": "ReviewState",
       "type": "string"
+    },
+    "ReviewsPage": {
+      "additionalProperties": false,
+      "properties": {
+        "availability": {
+          "$ref": "#/definitions/Availability"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/definitions/Review"
+          },
+          "title": "Items",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total": {
+          "minimum": 0,
+          "title": "Total",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "availability"
+      ],
+      "title": "ReviewsPage",
+      "type": "object"
     },
     "SelectionDecision": {
       "additionalProperties": false,
@@ -1305,6 +1954,52 @@
       "title": "SoftwareMap",
       "type": "object"
     },
+    "StageCoverageItem": {
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "title": "Completed",
+          "type": "integer"
+        },
+        "failed": {
+          "title": "Failed",
+          "type": "integer"
+        },
+        "limited": {
+          "title": "Limited",
+          "type": "integer"
+        },
+        "notes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Notes",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stage": {
+          "title": "Stage",
+          "type": "string"
+        },
+        "status": {
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "status",
+        "completed",
+        "failed",
+        "limited"
+      ],
+      "title": "StageCoverageItem",
+      "type": "object"
+    },
     "StageName": {
       "enum": [
         "git",
@@ -1358,6 +2053,124 @@
       "title": "StageStatus",
       "type": "string"
     },
+    "SummaryResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_id": {
+          "title": "Analysis Id",
+          "type": "string"
+        },
+        "availability": {
+          "$ref": "#/definitions/Availability"
+        },
+        "base_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Base Commit"
+        },
+        "counts": {
+          "$ref": "#/definitions/AnalysisCounts"
+        },
+        "diff_files": {
+          "items": {
+            "$ref": "#/definitions/DiffFileEntry"
+          },
+          "title": "Diff Files",
+          "type": "array"
+        },
+        "evidence_resolution_failures": {
+          "items": {
+            "type": "object"
+          },
+          "title": "Evidence Resolution Failures",
+          "type": "array"
+        },
+        "limits": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Limits",
+          "type": "array"
+        },
+        "manifest": {
+          "anyOf": [
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manifest"
+        },
+        "rules_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rules Version"
+        },
+        "schema_version": {
+          "default": "1.3.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "snapshot_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Snapshot Id"
+        },
+        "stage_coverage": {
+          "items": {
+            "$ref": "#/definitions/StageCoverageItem"
+          },
+          "title": "Stage Coverage",
+          "type": "array"
+        },
+        "status": {
+          "$ref": "#/definitions/AnalysisStatus"
+        },
+        "target_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Commit"
+        }
+      },
+      "required": [
+        "analysis_id",
+        "status",
+        "availability"
+      ],
+      "title": "SummaryResponse",
+      "type": "object"
+    },
     "WorkingTreeEntry": {
       "additionalProperties": false,
       "description": "One `git status --porcelain` entry, informational only (never analyzed).",
@@ -1401,9 +2214,15 @@
     }
   },
   "models": [
+    "AnalysisCounts",
+    "AnalysisOptions",
+    "AnalysisResponse",
     "AnalysisSession",
     "AnalysisStatus",
+    "Availability",
+    "CoverageResponse",
     "CoverageSummary",
+    "CreateAnalysisRequest",
     "DiffFileEntry",
     "DiffFileStatus",
     "DiffResult",
@@ -1418,29 +2237,41 @@
     "FileParseReport",
     "Finding",
     "FindingCategory",
+    "FindingDetail",
     "FindingImpact",
     "FindingKind",
+    "FindingListItem",
     "FindingReliability",
+    "FindingsPage",
     "ImmutableAnalysisInput",
+    "ImpactPathItem",
+    "ImpactPathsPage",
     "LineMapHunk",
     "MapEdge",
     "MapNode",
     "MapNodeKind",
     "MapRelation",
+    "MapResponse",
     "ParseStatus",
+    "RepositoriesPage",
+    "RepositoryInfo",
     "Resolution",
     "Review",
+    "ReviewRequest",
     "ReviewState",
+    "ReviewsPage",
     "SelectionDecision",
     "SelectionStatus",
     "SnapshotIdentity",
     "SnapshotReport",
     "SoftwareMap",
+    "StageCoverageItem",
     "StageName",
     "StageRecord",
     "StageStatus",
+    "SummaryResponse",
     "WorkingTreeEntry"
   ],
-  "schema_version": "1.1.0",
+  "schema_version": "1.3.0",
   "title": "MorphoJudge core contracts"
 }

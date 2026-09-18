@@ -20,8 +20,17 @@ from .domain import CONTRACT_MODELS, SCHEMA_VERSION, ContractModel
 from .errors import ErrorCode, ErrorObject, ErrorResponse
 
 
+def _api_models() -> list[type]:
+    """API DTO（api/schemas.py）纳入公开 Schema；延迟导入避免层次环。"""
+
+    from ..api.schemas import API_CONTRACT_MODELS
+
+    return list(API_CONTRACT_MODELS)
+
+
 def _model_names() -> list[str]:
     names = [m.__name__ for m in CONTRACT_MODELS] + [ErrorResponse.__name__, ErrorObject.__name__, ErrorCode.__name__]
+    names.extend(model.__name__ for model in _api_models())
     return sorted(set(names))
 
 
@@ -70,6 +79,14 @@ def generate_schema() -> Dict[str, Any]:
         definitions[model.__name__] = model.model_json_schema(
             ref_template="#/definitions/{model}"
         )
+
+    # API DTO 与领域契约共享 definitions 命名空间（同名即同形，冲突在
+    # _hoist_inner_defs 的同名不变量中被拒绝）。
+    for model in _api_models():
+        if isinstance(model, type) and issubclass(model, ContractModel):
+            definitions[model.__name__] = model.model_json_schema(
+                ref_template="#/definitions/{model}"
+            )
 
     definitions[ErrorCode.__name__] = TypeAdapter(ErrorCode).json_schema()
 

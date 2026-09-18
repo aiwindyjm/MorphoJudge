@@ -51,6 +51,8 @@ services:
       target: daemon
     environment:
       MORPHOJUDGE_REPOSITORY_ROOTS: /fixtures
+      MORPHOJUDGE_DATA_DIR: /data
+      MORPHOJUDGE_MANIFEST_DIR: /fixtures/manifests
     volumes:
       # 只读源码挂载：容器内即时反映 engine 修改；只读 fixture 仓库。
       - type: bind
@@ -65,6 +67,10 @@ services:
         source: ./tests/fixtures/manifests
         target: /fixtures/manifests
         read_only: true
+      # SQLite 与持久化分析结果的独立数据卷（OPS-DB；非只读，不挂 PRIVATE）。
+      - type: volume
+        source: daemon-data
+        target: /data
       # 契约一致性测试需要读取冻结文档、生成的 schema 与 TS 镜像类型。
       - type: bind
         source: ./docs
@@ -117,3 +123,4 @@ services:
 
 volumes:
   fixture-data:
+  daemon-data:
