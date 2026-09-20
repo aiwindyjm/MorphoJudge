@@ -96,6 +96,17 @@ def _require_artifact(
     return document, status
 
 
+def _invalid_enum_filter(field: str) -> MorphoJudgeError:
+    """非法枚举过滤值：只返回字段位置与原因，不回显原值（B04-R2-05）。"""
+
+    return MorphoJudgeError(
+        ErrorCode.INVALID_INPUT,
+        f"unknown {field} filter value (must be a known enum member)",
+        retryable=False,
+        details={"field": field, "reason": "unknown_enum_value"},
+    )
+
+
 def _finding_from_row(row) -> Finding:
     return Finding(
         id=str(row["finding_id"]),
@@ -159,11 +170,7 @@ def coverage(
     document, analysis_status = _require_artifact(repository, analysis_id, "parse")
 
     if status is not None and status not in {item.value for item in SelectionStatus}:
-        raise MorphoJudgeError(
-            ErrorCode.INVALID_INPUT,
-            f"unknown selection status filter: {status}",
-            details={"status": status},
-        )
+        raise _invalid_enum_filter("selection status")
 
     rules_document = repository.rules_document(analysis_id)
     source = rules_document if rules_document is not None else document
@@ -274,11 +281,7 @@ def findings(
     if category is not None and category not in {
         item.value for item in FindingCategory
     }:
-        raise MorphoJudgeError(
-            ErrorCode.INVALID_INPUT,
-            f"unknown finding category filter: {category}",
-            details={"category": category},
-        )
+        raise _invalid_enum_filter("finding category")
 
     total, rows = repository.list_findings(
         analysis_id, category=category, rule_id=rule_id, limit=limit, offset=offset

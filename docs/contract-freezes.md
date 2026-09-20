@@ -93,11 +93,15 @@ Persistence 只写入上游产物；API 只读写 Persistence；Web 只调用 AP
 
 - 端点：`POST /v1/analyses`（创建，请求体 `{repository_id, base_ref, target_ref, rules_version?, options?}`，未知字段拒绝；只接受登记 repository_id，不接受路径/命令）；`GET /v1/analyses/{id}`（状态+阶段）；`POST /v1/analyses/{id}/cancel`；`GET /v1/analyses/{id}/coverage`（选择决策分页 + 全阶段 stage_coverage + limits + manifest 状态）；`GET /v1/analyses/{id}/software-map?side=base|target`（正式端点；`/map` 为 Batch-04 兼容别名）；`GET /v1/analyses/{id}/impact-paths`；`GET /v1/analyses/{id}/summary`（输入身份、diff 文件清单、阶段覆盖、限制、证据定位失败、manifest 绑定）；`GET /v1/analyses/{id}/findings`（分页+过滤）；`GET /v1/analyses/{id}/findings/{finding_id}`（含证据锚点）；`GET /v1/analyses/{id}/evidence/{evidence_id}`；`GET|POST /v1/analyses/{id}/reviews`；`GET /v1/repositories`（仅 repository_id/name/registered_at，不含内部路径）。
 - 响应包络（R1）：所有响应 DTO 携带 `schema_version`；分页响应 `{items, total, limit, offset}`（findings 按 finding_id、decisions 按 path 稳定排序）；结果响应携带 `availability {analysis_status, artifacts: complete|partial, note}`。
-- 结果就绪语义（R1 修正）：按**已提交产物**判定——map 端点需要 parse checkpoint 的 maps 行；findings/evidence/impact-paths/summary/reviews/coverage 全量信息需要 rules checkpoint 文档。产物存在即可读（含 failed/cancelled 分析的已提交产物，availability 标 partial）；无产物返回 409 `ANALYSIS_NOT_READY`（details 携带 status 与缺失项），绝不返回可被误读为"无发现/安全"的空集合。
+- 结果就绪语义（R1 登记；**R2 按已验实现纠正分层**——R1 文本把 findings/evidence/reviews 归入 rules checkpoint 是登记错误，实际实现及交付一直按三层产物读取，本登记纠正为与实现一致，不新增查询能力）：按**已提交产物**判定——map 端点与 coverage 最低需要 parse checkpoint（maps 行/选择决策；coverage 的 stage_coverage/limits 全量信息在 rules checkpoint 提交后补充）；summary/impact-paths 需要 rules checkpoint 文档；findings/evidence/reviews 需要 report 事务提交的行产物。产物存在即可读（含 failed/cancelled 分析的已提交产物，availability 标 partial）；无产物返回 409 `ANALYSIS_NOT_READY`（details 携带 status 与缺失项），绝不返回可被误读为"无发现/安全"的空集合。
 - 选项契约（R1）：`options {impact_max_depth: 1..50=10, impact_max_nodes: 1..5000=1000}` 是本批唯一支持的选项集；options 进入幂等键派生与 `analyses.options_json`，是恢复输入的一部分。其余 options 未提供、未实现。
 - 幂等键：可选请求头 `Idempotency-Key`（1..200 字符，无控制字符）；缺省时由服务端从请求内容确定性派生（sha256(canonical payload)）。同键同请求 → 返回既有分析（200，响应头 `Idempotency-Replayed: true`）；同键不同请求 → 409 `ANALYSIS_CONFLICT`。`analysis_id = "analysis:" + sha256(idempotency_key)[:24]`。
 - 取消语义：对非终态分析设置协作式取消标记；尚未开始执行的排队任务直接转 `cancelled`；已开始任务在阶段边界停止，且取消与终态在 report 事务内线性化（标记先落库则取消获胜、产物保留）。对终态分析取消 → 409 `ANALYSIS_CONFLICT`。
-- 错误隐私（R1）：校验错误只返回字段位置与错误类型，不回显 input/ctx 原文；未知路由/方法返回统一错误 envelope（`ROUTE_NOT_FOUND`/404）；`/repositories` 不输出仓库内部 canonical_path；worker failure_reason 经脱敏（绝对路径 → `<path>`，长度截断）。
+- 错误隐私（R1；R2 补充）：校验错误只返回字段位置与错误类型，不回显 input/ctx 原文；未知路由/方法返回统一错误 envelope（`ROUTE_NOT_FOUND`/404）；`/repositories` 不输出仓库内部 canonical_path；worker failure_reason 经脱敏（绝对路径 → `<path>`，长度截断）。R2 补充：coverage `status` 与 findings `category` 等手工查询参数校验同样不回显原值（INVALID_INPUT + 字段位置/原因）。
+
+### Freeze 4 R2 登记（Batch-04-R2）
+
+- 旧库迁移（B04-R2-01）：v1→v2 迁移在同一事务内先检测悬空 review（引用不存在 finding）；存在则显式拒绝并整体回滚（旧表/版本/字段原样保留，错误只含数量不输出 note 原文），不自动删除人工记录。已在旧版迁移中被删除的行无法恢复。执行所有权（R2-02）：单进程范围内同一 (数据库, analysis_id) 只有一个执行者——进程级执行声明，run 生命周期持有、finally 释放、重启后为空不影响恢复；非持有者不产生任何写入。取消（R2-02/03）：取消是否接受由数据库条件写入裁决——取消标记先于 report 提交落库则取消生效（产物保留）；report 先提交终态则取消返回 409 且不改 cancel_requested/updated_at/任何阶段；排队直接取消走同一终态 CAS。取消生效时把仍为 queued/running 的阶段关闭为 skipped 并注明 `cancelled_by_user` 与完成时间（不新增公开枚举）；CAS 未成功不得改写任何行。manifest 深层校验（R2-04）：`human_feature_mapping` 每项必须为 dict 且含字符串 `page`/`feature_id`/`feature`、可选 `events`（字符串列表）、`confirmed_by == "human"`；`required_entities.permission_modules` 每项必须为字符串；违反者进入 `schema_invalid`（digest 保留，分析继续并携带 `manifest:schema_invalid` 限制）；未消费的描述性元数据不受限。
 
 ## Freeze 5：V0.1.6-alpha
 

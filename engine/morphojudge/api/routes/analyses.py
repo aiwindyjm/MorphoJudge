@@ -177,10 +177,23 @@ def cancel_analysis(analysis_id: str, request: Request) -> AnalysisResponse:
             details={"status": str(row["status"])},
         )
     if state.runner.cancel_pending(analysis_id):
-        # 排队中且尚未执行：直接进入终态。
+        # 排队中且尚未执行：直接进入终态（apply_cancel 内部 CAS，
+        # 若此刻已被并发转入终态则不动任何行，按冲突返回）。
         repository.apply_cancel(analysis_id)
-    else:
-        repository.request_cancel(analysis_id)
+    elif not repository.request_cancel(analysis_id):
+        # report 先提交终态：取消未获接受，不改 cancel_requested/updated_at/阶段。
+        raise MorphoJudgeError(
+            ErrorCode.ANALYSIS_CONFLICT,
+            "analysis already reached a terminal state and cannot be cancelled",
+            details={"status": str(repository.analysis_status(analysis_id))},
+        )
     refreshed = repository.get_analysis(analysis_id)
     assert refreshed is not None
+    if str(refreshed["status"]) != "cancelled" and is_terminal_status(str(refreshed["status"])):
+        # cancel_pending 分支的并发竞态：任务在 CAS 前已被转成其他终态。
+        raise MorphoJudgeError(
+            ErrorCode.ANALYSIS_CONFLICT,
+            "analysis already reached a terminal state and cannot be cancelled",
+            details={"status": str(refreshed["status"])},
+        )
     return build_analysis_response(repository, refreshed)

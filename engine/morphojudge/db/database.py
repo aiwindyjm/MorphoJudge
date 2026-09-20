@@ -167,15 +167,27 @@ def _migration_0001(connection: sqlite3.Connection) -> None:
 
 
 def _migration_0002(connection: sqlite3.Connection) -> None:
-    """Batch-04-R1：引用完整性与恢复输入列。
+    """Batch-04-R1/R2：引用完整性与恢复输入列。
 
-    - reviews 增加指向 findings(analysis_id, finding_id) 的复合外键；
-      旧库中悬空的 review 行（引用不存在的 finding）在迁移中被丢弃——
-      它们本就违反数据不变量，保留会阻止外键启用。
+    - 迁移前在同一事务内检测悬空旧 review（引用不存在的 finding）：
+      存在则显式拒绝迁移并整体回滚——历史不一致不等于删除授权，
+      人工 note 必须原地保留（B04-R2-01）。错误只含数量，不输出 note 原文。
+    - reviews 重建为指向 findings(analysis_id, finding_id) 的复合外键。
     - analyses 增加 manifest_status/manifest_digest（映射配置绑定）与
       options_json（分析选项，恢复输入的一部分）。
     """
 
+    dangling = connection.execute(
+        "SELECT COUNT(*) AS n FROM reviews r WHERE NOT EXISTS ("
+        " SELECT 1 FROM findings f"
+        " WHERE f.analysis_id = r.analysis_id AND f.finding_id = r.finding_id)"
+    ).fetchone()["n"]
+    if dangling:
+        raise RuntimeError(
+            f"migration 0002 refused: {dangling} review rows reference missing "
+            "findings; resolve or export them manually before upgrading "
+            "(automatic deletion of human review notes is not allowed)"
+        )
     connection.execute(
         "CREATE TABLE reviews_new ("
         " analysis_id TEXT NOT NULL,"
@@ -191,9 +203,6 @@ def _migration_0002(connection: sqlite3.Connection) -> None:
         "INSERT INTO reviews_new (analysis_id, finding_id, state, note, updated_at)"
         " SELECT r.analysis_id, r.finding_id, r.state, r.note, r.updated_at"
         " FROM reviews r"
-        " WHERE EXISTS ("
-        "   SELECT 1 FROM findings f"
-        "   WHERE f.analysis_id = r.analysis_id AND f.finding_id = r.finding_id)"
     )
     connection.execute("DROP TABLE reviews")
     connection.execute("ALTER TABLE reviews_new RENAME TO reviews")
@@ -291,7 +300,9 @@ def migrate(db_path: Path, migrations: Sequence[Migration] = MIGRATIONS) -> int:
                     (migration.version, migration.name),
                 )
                 connection.execute("COMMIT")
-            except sqlite3.Error as error:
+            except Exception as error:
+                # 任意迁移失败（含业务性拒绝）都显式回滚：旧库保持上一个
+                # 版本，写入停止；成功执行过的 DDL/DML 不留痕。
                 connection.execute("ROLLBACK")
                 raise RuntimeError(
                     f"migration {migration.version} ({migration.name}) failed: {error}"

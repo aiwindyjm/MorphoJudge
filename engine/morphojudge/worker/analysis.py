@@ -96,6 +96,30 @@ class _StageFailed(Exception):
 
 
 # ---------------------------------------------------------------------------
+# 执行所有权（B04-R2-02）：单进程、单 daemon 支持范围内的跨 Runner/Worker
+# 互斥。键 = (规范化数据库路径, analysis_id)；只有正在执行的分析占用登记，
+# 所有返回/异常路径在 finally 释放——不是持有全部历史 ID 的无界注册表，
+# 重启后为空，不影响恢复。非持有者不写入任何阶段/checkpoint/失败或终态。
+# ---------------------------------------------------------------------------
+
+_EXECUTION_CLAIMS: set[tuple[str, str]] = set()
+_EXECUTION_CLAIMS_LOCK = threading.Lock()
+
+
+def _claim_execution(key: tuple[str, str]) -> bool:
+    with _EXECUTION_CLAIMS_LOCK:
+        if key in _EXECUTION_CLAIMS:
+            return False
+        _EXECUTION_CLAIMS.add(key)
+        return True
+
+
+def _release_execution(key: tuple[str, str]) -> None:
+    with _EXECUTION_CLAIMS_LOCK:
+        _EXECUTION_CLAIMS.discard(key)
+
+
+# ---------------------------------------------------------------------------
 # Manifest loading (B04-R1-07)
 # ---------------------------------------------------------------------------
 
@@ -126,16 +150,47 @@ class ManifestOutcome:
 
 
 def _manifest_shape_ok(manifest: Any) -> bool:
+    """单一、显式的已消费配置校验入口（B04-R2-04）。
+
+    按 parser/extract.load_feature_mapping 与 permission_modules 的实际消费
+    结构校验子项：human_feature_mapping 每项必须是 dict，含字符串
+    page/feature_id/feature、可选 events（字符串列表）且 confirmed_by ==
+    "human"；permission_modules 每项必须是字符串（禁止 str() 强转错型）。
+    未消费的描述性元数据（fixture 的 author/commits/description 等）不受
+    影响——不擅自收窄整个 manifest 格式。
+    """
+
     if not isinstance(manifest, dict):
         return False
-    if "human_feature_mapping" in manifest and not isinstance(manifest["human_feature_mapping"], list):
-        return False
-    if "required_entities" in manifest and not isinstance(manifest["required_entities"], dict):
-        return False
-    entities = manifest.get("required_entities")
-    if isinstance(entities, dict) and "permission_modules" in entities:
-        if not isinstance(entities["permission_modules"], list):
+    mapping = manifest.get("human_feature_mapping")
+    if mapping is not None:
+        if not isinstance(mapping, list):
             return False
+        for entry in mapping:
+            if not isinstance(entry, dict):
+                return False
+            if entry.get("confirmed_by") != "human":
+                return False
+            for field in ("page", "feature_id", "feature"):
+                value = entry.get(field)
+                if not isinstance(value, str) or not value:
+                    return False
+            events = entry.get("events")
+            if events is not None:
+                if not isinstance(events, list):
+                    return False
+                if any(not isinstance(event, str) for event in events):
+                    return False
+    entities = manifest.get("required_entities")
+    if entities is not None:
+        if not isinstance(entities, dict):
+            return False
+        modules = entities.get("permission_modules")
+        if modules is not None:
+            if not isinstance(modules, list):
+                return False
+            if any(not isinstance(module, str) for module in modules):
+                return False
     return True
 
 
@@ -175,7 +230,8 @@ def permission_modules_of(manifest: dict | None) -> list[str]:
     modules = entities.get("permission_modules")
     if not isinstance(modules, list):
         return []
-    return [str(item) for item in modules]
+    # 不做强转：非字符串元素只可能来自未校验路径，过滤而非 str()（B04-R2-04）
+    return [module for module in modules if isinstance(module, str)]
 
 
 # ---------------------------------------------------------------------------
@@ -375,8 +431,26 @@ class AnalysisWorker:
     # -- main ------------------------------------------------------------
 
     def run(self, analysis_id: str) -> str:
-        """Execute (or resume) the analysis; returns the final status."""
+        """Execute (or resume) the analysis; returns the final status.
 
+        同一数据库的同一分析在单进程内只有一个执行者（B04-R2-02）：
+        非持有者直接返回当前状态，不产生任何写入。
+        """
+
+        key = (str(self.repository.db_path.resolve()), analysis_id)
+        if not _claim_execution(key):
+            existing = self.repository.get_analysis(analysis_id)
+            if existing is None:
+                raise MorphoJudgeError(
+                    ErrorCode.ANALYSIS_NOT_FOUND, f"analysis not found: {analysis_id}"
+                )
+            return str(existing["status"])
+        try:
+            return self._run_owned(analysis_id)
+        finally:
+            _release_execution(key)
+
+    def _run_owned(self, analysis_id: str) -> str:
         row = self.repository.get_analysis(analysis_id)
         if row is None:
             raise MorphoJudgeError(

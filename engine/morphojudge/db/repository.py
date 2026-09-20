@@ -159,38 +159,51 @@ class AnalysisRepository:
                 )
             return cursor.rowcount > 0
 
-    def request_cancel(self, analysis_id: str) -> None:
+    def request_cancel(self, analysis_id: str) -> bool:
+        """条件写入取消标记：仅非终态（queued/running）接受（B04-R2-02）。
+
+        返回 False 表示分析已到终态——调用方不得再改 cancel_requested、
+        updated_at 或任何阶段；report 先提交终态时取消方收到冲突。
+        """
+
         with writer(self.db_path) as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "UPDATE analyses SET cancel_requested = 1, updated_at = ?"
-                " WHERE analysis_id = ?",
+                " WHERE analysis_id = ? AND status IN ('queued', 'running')",
                 (utc_now(), analysis_id),
             )
+            return cursor.rowcount > 0
 
     def is_cancel_requested(self, analysis_id: str) -> bool:
         row = self.get_analysis(analysis_id)
         return row is not None and bool(row["cancel_requested"])
 
-    def apply_cancel(self, analysis_id: str) -> None:
+    def apply_cancel(self, analysis_id: str) -> bool:
         """Cooperative cancel took effect: terminal state, stages closed.
 
-        只把仍处于 queued 的阶段记为 skipped；已完成/已失败的阶段保留原状，
-        已终态（completed/failed/cancelled...）的分析不被改写。
+        单事务内先 CAS 状态（仅 queued/running → cancelled）；CAS 未成功
+        （已是终态）则完全不动任何行（B04-R2-02/03）。成功时把仍处于
+        queued/running 的阶段关闭为 skipped 并记录取消原因与完成时间——
+        中断后恢复时收到取消也不会留下永不结束的 running 假象；
+        completed/failed 阶段与已提交产物保持原状。
         """
 
         now = utc_now()
         with writer(self.db_path) as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "UPDATE analyses SET status = 'cancelled', updated_at = ?"
                 " WHERE analysis_id = ? AND status NOT IN"
                 " ('completed', 'completed_with_limits', 'failed', 'cancelled')",
                 (now, analysis_id),
             )
+            if cursor.rowcount == 0:
+                return False
             connection.execute(
-                "UPDATE stages SET status = 'skipped', completed_at = ?"
-                " WHERE analysis_id = ? AND status = 'queued'",
-                (now, analysis_id),
+                "UPDATE stages SET status = 'skipped', detail = ?, completed_at = ?"
+                " WHERE analysis_id = ? AND status IN ('queued', 'running')",
+                ("cancelled_by_user", now, analysis_id),
             )
+            return True
 
     # ------------------------------------------------------------------
     # Stage records
