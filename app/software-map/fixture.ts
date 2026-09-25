@@ -19,7 +19,7 @@ const nodes: MapNode[] = [
 ]
 
 const nodeById = new Map(nodes.map((node) => [node.id, node]))
-const edge = (from: string, to: string, relation: string, resolution: MapEdge['resolution'] = 'resolved'): MapEdge => ({ from, to, relation, resolution, source: nodeById.get(from)!.source })
+const edge = (from: string, to: string, relation: string, resolution: MapEdge['resolution'] = 'resolved'): MapEdge => ({ id: `${from}-${to}-${relation}`, from, to, relation, resolution, source: nodeById.get(from)!.source })
 
 export const fixture: SoftwareMap = {
   nodes,

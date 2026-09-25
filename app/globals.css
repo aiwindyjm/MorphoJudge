@@ -550,3 +550,35 @@ body {
 .nav-icon svg, .folder svg, .finding-icon svg, .explain-title svg, .path-input > span:first-of-type svg { display: block; }
 .outline { display: inline-flex; align-items: center; gap: 7px; }
 .spinner img { width: 34px; height: 34px; border-radius: var(--r-lg); display: block; }
+
+/* --- Batch-05 真实模式接入（沿用既有令牌，不新增视觉语言） --- */
+.mode-switch { display: inline-flex; gap: 4px; border: 1px solid var(--border); border-radius: var(--r-sm); padding: 2px; background: var(--surface-2); }
+.mode-switch button { border: 0; background: transparent; color: var(--text-2); font-size: 12px; padding: 3px 10px; border-radius: var(--r-sm); cursor: pointer; }
+.mode-switch button:hover { background: var(--surface-3); }
+.mode-switch .mode-active, .side-switch .mode-active { background: var(--primary); color: #fff; }
+.side-switch { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); padding: 6px 2px; }
+.side-switch button { border: 1px solid var(--border-strong); background: var(--surface); color: var(--text-2); font-size: 12px; padding: 3px 10px; border-radius: var(--r-sm); cursor: pointer; }
+.banner-error { background: var(--error-subtle); color: var(--error-text); border: 1px solid color-mix(in srgb, var(--error) 30%, transparent); border-radius: var(--r-sm); padding: 8px 12px; font-size: 13px; margin: 8px 0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.banner-error .text-action { color: var(--error-text); text-decoration: underline; }
+.form-hint { color: var(--text-3); font-size: 12.5px; margin: 6px 0; }
+.running-actions { margin-top: 18px; display: flex; align-items: center; gap: 12px; justify-content: center; }
+.running-actions small { color: var(--text-3); font-size: 12px; }
+.stages .failed-stage { color: var(--error-text); }
+.stages .skipped-stage { color: var(--text-disabled); }
+.report-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.report-section { margin-top: 26px; }
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 12px; }
+.chip { background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); border-radius: var(--r-lg); padding: 3px 12px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.chip.warn { background: var(--warning-subtle); color: var(--warning-text); border-color: color-mix(in srgb, var(--warning) 30%, transparent); }
+.toolbar-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.toolbar-row select { border: 1px solid var(--border-strong); border-radius: var(--r-sm); padding: 4px 8px; background: var(--surface); color: var(--text-1); font-size: 13px; }
+.page-status { color: var(--text-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.limit-list { margin: 4px 0 0 18px; color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.stage-table td { font-variant-numeric: tabular-nums; }
+.evidence-anchor { margin: 10px 0; }
+.evidence-anchor small { display: block; color: var(--text-3); margin-top: 4px; }
+.evidence-anchor pre { margin: 0; }
+.unknown-reason { color: var(--warning-text); background: var(--warning-subtle); border-radius: var(--r-sm); padding: 8px 10px; font-size: 13px; }
+.code-unavailable { color: var(--text-3); font-size: 12.5px; background: var(--surface-2); border: 1px dashed var(--border-strong); }
+pre.code-preview.code-unavailable, .source-code.code-unavailable { white-space: normal; }
+.review div button:disabled { opacity: 0.45; cursor: not-allowed; }

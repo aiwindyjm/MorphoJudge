@@ -532,6 +532,94 @@ def test_invalid_manifest_children_complete_as_limit(harness: Harness, tmp_path:
 
 
 # ---------------------------------------------------------------------------
+# B04-R3-01：显式 JSON null ≠ 键缺省
+# ---------------------------------------------------------------------------
+
+_R3_BASE_MAPPING = {
+    "page": "src/pages/checkout/page.tsx",
+    "feature_id": "F-checkout",
+    "feature": "结账",
+    "confirmed_by": "human",
+    "events": ["submitCheckout"],
+}
+
+
+@pytest.mark.parametrize(
+    "name,content",
+    [
+        ("mapping_null", {"human_feature_mapping": None}),
+        ("entities_null", {"required_entities": None}),
+        ("modules_null", {"required_entities": {"permission_modules": None}}),
+        ("events_null", {"human_feature_mapping": [dict(_R3_BASE_MAPPING, events=None)]}),
+    ],
+)
+def test_manifest_explicit_null_rejected_end_to_end(
+    harness: Harness, tmp_path: Path, name: str, content: dict
+):
+    """四种显式 null：loader=schema_invalid + digest；进入 Worker 后
+    完成但受限（非内部 TypeError），库内保留 schema_invalid+digest，
+    limits 含 manifest:schema_invalid，无事实升级。"""
+
+    base = tmp_path / f"r3-{name}"
+    repo = make_net_repo(base, name="scenario")
+    manifests = base / "cfg"
+    manifests.mkdir(parents=True)
+    (manifests / "scenario-manifest.json").write_text(json.dumps(content), encoding="utf-8")
+
+    outcome = load_manifest(manifests, repo)
+    assert outcome.status == ManifestStatus.SCHEMA_INVALID
+    assert outcome.digest, "非法配置仍保留内容摘要"
+
+    analysis_id = register_and_create(harness.repository, repo, key=f"r3-{name}")
+    status = AnalysisWorker(
+        harness.repository, allowed_roots=(base,), manifest_dir=manifests
+    ).run(analysis_id)
+    assert status in ("completed", "completed_with_limits"), \
+        "显式 null 必须分流为限制，不得让分析内部 TypeError 失败"
+    row = harness.repository.get_analysis(analysis_id)
+    assert row["manifest_status"] == "schema_invalid"
+    assert row["manifest_digest"] == outcome.digest, "持久化摘要与 loader 一致"
+    assert row["failure_reason"] is None, "不得以内部异常冒充配置分类"
+    document = harness.repository.rules_document(analysis_id)
+    assert document is not None
+    assert "manifest:schema_invalid" in document["limits"]
+
+
+@pytest.mark.parametrize(
+    "name,content",
+    [
+        ("all_omitted", {}),
+        ("events_omitted", {"human_feature_mapping": [{k: v for k, v in _R3_BASE_MAPPING.items() if k != "events"}]}),
+        ("empty_containers", {"human_feature_mapping": [], "required_entities": {"permission_modules": []}}),
+        ("empty_entities", {"required_entities": {}}),
+        ("events_empty", {"human_feature_mapping": [dict(_R3_BASE_MAPPING, events=[])]}),
+    ],
+)
+def test_manifest_missing_and_empty_stay_legal(
+    harness: Harness, tmp_path: Path, name: str, content: dict
+):
+    """控制组：键缺省与空容器合法——可选表示可缺省/可空，不因 null 修复收紧。"""
+
+    base = tmp_path / f"r3-legal-{name}"
+    repo = make_net_repo(base, name="scenario")
+    manifests = base / "cfg"
+    manifests.mkdir(parents=True)
+    (manifests / "scenario-manifest.json").write_text(json.dumps(content), encoding="utf-8")
+
+    outcome = load_manifest(manifests, repo)
+    assert outcome.status == ManifestStatus.LOADED
+    analysis_id = register_and_create(harness.repository, repo, key=f"r3-legal-{name}")
+    status = AnalysisWorker(
+        harness.repository, allowed_roots=(base,), manifest_dir=manifests
+    ).run(analysis_id)
+    assert status in ("completed", "completed_with_limits")
+    row = harness.repository.get_analysis(analysis_id)
+    assert row["manifest_status"] == "loaded"
+    document = harness.repository.rules_document(analysis_id)
+    assert "manifest:schema_invalid" not in document["limits"]
+
+
+# ---------------------------------------------------------------------------
 # B04-R2-05：查询参数不回显
 # ---------------------------------------------------------------------------
 

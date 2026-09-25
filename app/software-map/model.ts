@@ -1,5 +1,8 @@
-export type Kind = '页面' | '功能' | '方法' | '契约' | '数据'
-export type Source = { file: string; line: number; code: string }
+export type Kind = '页面' | '功能' | '方法' | '契约' | '数据' | '外部服务'
+// WEB-002：resolution 无损容纳服务契约的三态；unresolved 不并入 candidate。
+export type Resolution = 'resolved' | 'candidate' | 'unresolved'
+// 源码定位可缺：真实服务不提供节点源码；行号缺失时为 null，不得默认 0/1。
+export type Source = { file: string; line: number | null; code: string | null }
 export type MethodFacts = {
   declaration?: { params: string[]; required: string[]; effects: string[] }
   actual: { params: string[]; required: string[]; effects: string[] }
@@ -12,13 +15,16 @@ export type MapNode = {
   source: Source
   x: number
   y: number
+  resolution?: Resolution
+  note?: string | null
   facts?: MethodFacts
 }
 export type MapEdge = {
+  id: string
   from: string
   to: string
   relation: string
-  resolution: 'resolved' | 'candidate'
+  resolution: Resolution
   source: Source
 }
 export type SoftwareMap = { nodes: MapNode[]; edges: MapEdge[]; limits: string[] }
@@ -26,7 +32,7 @@ export type Trace = { nodeId: string; path: string[]; candidate: boolean }
 export type ExplanationClaim = { text: string; evidenceIds: string[]; certainty: 'fact_restatement' | 'model_inference' | 'unknown' }
 export type Explanation = { id: string; provider: 'ollama' | 'fake' | 'remote'; model: string; status: 'completed' | 'failed'; summary: string; claims: ExplanationClaim[]; uncertainty: string[]; errors?: string[] }
 
-export function traceGraph(graph: SoftwareMap, start: string, reverse = false): Trace[] {
+export function traceGraph(graph: { edges: MapEdge[] }, start: string, reverse = false): Trace[] {
   const adjacency = new Map<string, MapEdge[]>()
   for (const edge of graph.edges) {
     const key = reverse ? edge.to : edge.from
@@ -35,17 +41,19 @@ export function traceGraph(graph: SoftwareMap, start: string, reverse = false): 
     else adjacency.set(key, [edge])
   }
   const results = new Map<string, Trace>()
+  // 第一轮只走 resolved 边；第二轮放开 candidate/unresolved（标记 candidate
+  // 语义＝非确定），用 visited 防环，避免无限递归。
   for (const resolvedOnly of [true, false]) {
     const queue: Trace[] = [{ nodeId: start, path: [start], candidate: false }]
     const visited = new Set([start])
     for (let cursor = 0; cursor < queue.length; cursor++) {
       const current = queue[cursor]
       for (const edge of adjacency.get(current.nodeId) ?? []) {
-        if (resolvedOnly && edge.resolution === 'candidate') continue
+        if (resolvedOnly && edge.resolution !== 'resolved') continue
         const next = reverse ? edge.from : edge.to
         if (visited.has(next)) continue
         visited.add(next)
-        const entry = { nodeId: next, path: [...current.path, next], candidate: current.candidate || edge.resolution === 'candidate' }
+        const entry = { nodeId: next, path: [...current.path, next], candidate: current.candidate || edge.resolution !== 'resolved' }
         queue.push(entry)
         if (!results.has(next)) results.set(next, entry)
       }

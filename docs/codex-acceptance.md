@@ -36,13 +36,17 @@ docker compose exec -T daemon pytest tests/test_analysis_slice.py -q
 
 按变更风险选择检查；最后一条是定向集成入口，已通过全套且没有新变更时不必重复。涉及 Docker 生产构建时执行 `docker compose --profile preview build preview`。
 
-当前 Web 没有 `pnpm test` 脚本或已配置的 Playwright 测试套件，因此删除旧版中这两个不可用入口。A4 需要用当前可用浏览器工具实际操作并记录结果；A5 需待真实 API、存储与 Web 联动具备后执行，不能用 fixture 引擎测试冒充 Web 全链路。未来新增自动化入口应随实现更新本节。
+Batch-05 起浏览器回归入口已存在：根目录 `playwright.config.ts`、`tests/e2e/`（真实链路、响应校验与适配层测试）和 `package.json` 的 `pnpm test:e2e` 脚本，配套 Compose `e2e` profile（独立容器运行 `pnpm test:e2e`，截图/trace 写入容器 `/artifacts` 后由宿主 `docker cp` 提取；隔离项目示例命令见 README）。注意：`pnpm test` 脚本本身仍不存在，不能虚构其成功；只有 `pnpm test:e2e`（或 Compose e2e 服务）是浏览器自动化入口，运行结果按实际退出码记录。A4 可由该套件与实际浏览器操作共同覆盖；A5 的真实 API、存储与 Web 联动自 Batch-05 起已具备，但仍不能用 fixture 引擎测试冒充 Web 全链路。
 
 使用独立 Compose 项目/端口验证时保留实际命令与数据来源。未运行、缺依赖、环境错误及适用等级尚无入口分别记录；不得改写为通过。文档/规则维护只做相关静态核对，不触发与行为无关的整套审计。
 
 ## 通过条件
 
 任务的所有 Acceptance Criteria 通过；真实 fixture 被使用；Evidence 能回到文件、行号、提交和规则；Coverage 未检查范围透明；模型引用经过校验；旧功能无回归；Docker 边界通过。任何一项失败都标记 FIX_REQUIRED。
+
+## Release 判断
+
+Codex 的 `PASSED` 只表示对应 Batch 达到验收标准，不自动授权 GitHub Release。验收回执必须填写 `NO_RELEASE`、`RELEASE_CANDIDATE` 或 `RELEASE_AUTHORIZED`，并引用 [release-strategy.md](release-strategy.md)。验收要区分 `commit`、`push`、`tag` 和 GitHub Release；未实际执行的动作不能写成完成，未获明确授权不得执行公开发布动作。
 
 ## 独立审计清单
 

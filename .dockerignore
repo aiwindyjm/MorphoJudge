@@ -12,6 +12,9 @@
 !engine/**
 !tools/
 !tools/setup-fixture.py
+!playwright.config.ts
+!tests/e2e/
+!tests/e2e/**
 **/AGENTS.md
 **/CLAUDE.md
 **/*.private.md

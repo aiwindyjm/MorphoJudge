@@ -9,6 +9,9 @@ services:
       - "127.0.0.1:${MORPHOJUDGE_PORT:-3017}:3000"
     environment:
       WATCHPACK_POLLING: "true"
+      # 服务端同源代理的上游：浏览器只访问本站 /api/daemon/...，
+      # daemon 不发布宿主端口（Batch-05 / WEB-001）。
+      MORPHOJUDGE_DAEMON_URL: "http://daemon:8000"
     volumes:
       - type: bind
         source: ./app
@@ -121,6 +124,29 @@ services:
         source: fixture-data
         target: /fixture-store
 
+  # Batch-05 浏览器回归：Playwright 官方镜像（浏览器与包版本一致），
+  # 只读消费 web/daemon/fixture 卷，截图与 trace 先写测试容器 /artifacts，
+  # 再 docker cp 到宿主；不挂 PRIVATE。
+  e2e:
+    profiles: ["e2e"]
+    build:
+      context: .
+      target: e2e
+    environment:
+      PLAYWRIGHT_BASE_URL: "http://web:3000"
+      ARTIFACT_DIR: "/artifacts"
+    depends_on:
+      web:
+        condition: service_healthy
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - type: volume
+        source: e2e-artifacts
+        target: /artifacts
+
 volumes:
   fixture-data:
   daemon-data:
+  e2e-artifacts:

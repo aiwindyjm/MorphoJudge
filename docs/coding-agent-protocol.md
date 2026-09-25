@@ -1,9 +1,9 @@
 # Coding AI 协作协议
 
-版本：0.4
+版本：0.5
 状态：批次执行协议
 
-共享约束与当前可运行命令见根 [AGENTS.md](../AGENTS.md)。2026-09-17 维护：明确本协议约束 Batch 施工；规则/文档维护不等于领取下一开发 Batch，不改变产品基线和批次验收状态。
+共享约束与当前可运行命令见根 [AGENTS.md](../AGENTS.md)。2026-09-21 维护：明确提交、push 和 GitHub Release 分离；发布判断见 [release-strategy.md](release-strategy.md)。规则/文档维护不等于领取下一开发 Batch，不改变产品基线和批次验收状态。
 
 ## 批次节奏
 
@@ -36,6 +36,8 @@ Batch 状态：`PLANNED → READY → IMPLEMENTING → IMPLEMENTED → TESTED �
 8. 完成 Batch 后运行批次测试，生成交付回执，然后立即停止，不领取下一 Batch。
 9. 记录修改文件、测试结果、限制、未完成事项和实际状态；不能用未运行的测试声称通过。
 10. 只有 Codex 标记 Batch 为 `PASSED` 后，才允许领取下一 Batch。
+11. 每次提交或 Batch 回执必须填写 Release decision。默认只提交/推送，不创建标签或 Release；只有达到 [release-strategy.md](release-strategy.md) 的候选门槛并取得明确授权，才可发布。
+12. Release 判断基于实际验证、PRD 完成度、契约/迁移风险和公开内容扫描；提交次数、测试数量或代码存在不能单独触发发布。
 
 ## Batch 交付回执
 
@@ -75,6 +77,9 @@ Batch ID：
 Acceptance Criteria：PASS/FAIL
 当前状态：TESTED
 是否建议下一任务：是/否
+Release decision：NO_RELEASE / RELEASE_CANDIDATE / RELEASE_AUTHORIZED
+Candidate version：
+Missing release gates：
 ```
 
 需求冲突必须停止受影响写入，报告冲突位置、实际状态、PRD 要求、技术影响和方案；无冲突部分继续。

@@ -107,6 +107,28 @@ docker compose exec -T daemon pytest tests/test_analysis_slice.py -q
 
 The analysis integration is currently a Python service exercised through tests—not a CLI or Web upload flow. The fixture initializer verifies a bundled Git history and checksum, requires no network, and refuses to overwrite a changed fixture. Details: [fixture distribution](tests/fixtures/distribution/README.md).
 
+### Browser end-to-end tests (real daemon, real fixture)
+
+A dedicated Playwright container drives the real Web UI against the real daemon and the restored fixture. It runs in an isolated Compose project with its own volumes and a loopback-only port (here `3025`), never touches the development database, and never mounts private data:
+
+```sh
+# PowerShell
+$env:MORPHOJUDGE_PORT = '3025'
+docker compose -p morphojudge-b05-verify --profile fixtures run --rm --build fixture-setup
+docker compose -p morphojudge-b05-verify up --build -d web daemon
+docker compose -p morphojudge-b05-verify exec -T web pnpm exec tsc --noEmit
+docker compose -p morphojudge-b05-verify --profile e2e run --rm e2e     # pnpm test:e2e inside the browser container
+docker compose -p morphojudge-b05-verify exec -T daemon pytest -q -o "addopts=-p no:cacheprovider"
+```
+
+Screenshots and traces are written inside the e2e container first; copy them out before removing it:
+
+```sh
+docker compose -p morphojudge-b05-verify --profile e2e run --name b05-e2e e2e
+docker cp b05-e2e:/artifacts ./your-output-dir
+docker rm b05-e2e
+```
+
 Port 3017 already in use? Set `MORPHOJUDGE_PORT` in your shell before starting Compose. To stop this project's services without removing its fixture volume:
 
 ```sh

@@ -62,3 +62,26 @@ EXPOSE 8000
 HEALTHCHECK --interval=15s --timeout=10s --start-period=20s --retries=5 \
     CMD ["python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5)"]
 CMD ["python", "-m", "uvicorn", "morphojudge.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ---------------------------------------------------------------------------
+# e2e: Playwright 浏览器回归容器（Batch-05）。浏览器由 devDependencies 中
+# 精确锁定的 @playwright/test 1.51.1 安装（版本必然匹配）；本机网络无法
+# 直达 mcr.microsoft.com，故不使用官方 Playwright 镜像（回执记录该环境
+# 差异）。测试与被测前端代码只读 COPY，截图/trace 写 /artifacts 卷。
+# ---------------------------------------------------------------------------
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS e2e
+ENV NODE_ENV=development \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+WORKDIR /app
+RUN npm install --global pnpm@10.30.3
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile \
+ && pnpm exec playwright install --with-deps chromium
+COPY playwright.config.ts ./
+COPY tests/e2e ./tests/e2e
+COPY app/lib ./app/lib
+COPY app/software-map ./app/software-map
+RUN chmod -R a+rX /app /ms-playwright \
+ && mkdir -p /artifacts && chown node:node /artifacts
+USER node
+CMD ["pnpm", "test:e2e"]

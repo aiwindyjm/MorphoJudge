@@ -1,8 +1,12 @@
 # MorphoJudge 实施路线图
 
-版本不是日期承诺；每个 Batch 完成后，ZCODE 必须停止，Codex 独立审计通过后才可进入下一批次。
+版本不是日期承诺；每个 Batch 完成后，ZCODE 必须停止，Codex 独立审计通过后才可进入下一批次。Batch 与 GitHub Release 的候选版本、门槛和授权边界见 [release-strategy.md](release-strategy.md)。
 
-PRD 0.23：Batch 是完整能力交付单位，Task 是内部追溯项，不逐项人工交接。2026-09-16 的独立验收结论：Batch-01、Batch-02 已 PASSED；Batch-03 尚未实现。Batch-02 最近验证为 176 项 pytest、tsc 及来源定位反例通过，不代表后续批次已完成。
+PRD 0.23：Batch 是完整能力交付单位，Task 是内部追溯项，不逐项人工交接。
+
+2026-09-20 状态核对：Batch-01、Batch-02 已 PASSED；Batch-03 实现与测试已存在，其完整独立验收记录尚未闭合，不能继续写成”尚未实现”，也不据后续回归自动标为 PASSED。Batch-04 的 SQLite、Worker、API 交付范围经 R1/R2/R3 集中修复及独立增量复核，已 PASSED；该结论不代替 Batch-03 全能力验收或 v0.1 浏览器/模型/导出全链路验收。Batch-05（真实 Web API 接入）已完成施工：WEB-001/002/003 连同同源代理、浏览器回归入口已实现并于 2026-09-23 在隔离 Compose 项目完成终验（tsc、Playwright e2e 31/31、pytest 335 全部 exit 0）；状态为 **TESTED**，等待 Codex 独立验收，不因自测结果标记 PASSED。
+
+当前发布状态：仓库已有多个开发提交，但不按提交次数自动创建 Release。当前工作区存在未提交的 Batch-05 Web 接入变更，且 R3 仍未提交，因此为 `NO_RELEASE`。提交或推送前必须填写 [release-strategy.md](release-strategy.md) 的 Release decision。
 
 ## Batch-01 / V0.1.0-alpha：契约、Docker、Git 快照与真实 fixture
 
@@ -29,12 +33,16 @@ PRD 0.23：Batch 是完整能力交付单位，Task 是内部追溯项，不逐�
 
 ## Batch-04 / V0.1.3-alpha：SQLite、Worker 与 API
 
+验收状态：**PASSED（2026-09-20，限本批交付范围）**。代码基线为 `09dcb3f` 加 R3 的 manifest 校验与公开测试修复；R3 尚未提交。最后一轮独立运行相关集成测试 82 项及 null/缺省探针 8 项，全部通过；335 项全套通过是施工方本轮回执结果，Codex 本轮未重复全套。迁移数据保留、执行所有权、取消及错误回显的独立验收沿用上一轮已关闭结论。
+
 任务：DB-001、ANL-003、API-001、API-002。
 依赖：Batch-03 PASSED。
 产出：事务持久化、阶段 checkpoint、轮询/取消/恢复和查询 API。
 发布门槛：重启可恢复；旧快照不被覆盖；API schema、错误码和幂等行为稳定。
 
 ## Batch-05 / V0.1.4-alpha：真实 Web API 接入
+
+验收状态：**TESTED（2026-09-23 终验，等待 Codex 独立验收）**。实现包含 WEB-001（运行时响应校验、类型化客户端、Next 服务端白名单同源代理、创建/轮询/取消/刷新恢复）、WEB-002（SoftwareMap 适配层、三态 resolution 无损、组件 props 化）、WEB-003（产物分层查询、覆盖/发现/证据/影响展示、服务端分页）。浏览器回归入口已建立（`playwright.config.ts`、`tests/e2e/`、`pnpm test:e2e`、Compose `e2e` profile）。真实限制：review/导出/模型解释 UI 属后续批次（入口禁用并标注）；发布决策保持 `NO_RELEASE`（候选版本 `0.1.0-beta.1`，见 release-strategy.md）。
 
 任务：WEB-001、WEB-002、WEB-003。
 依赖：Batch-04 PASSED。

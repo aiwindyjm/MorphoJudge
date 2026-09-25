@@ -162,8 +162,11 @@ def _manifest_shape_ok(manifest: Any) -> bool:
 
     if not isinstance(manifest, dict):
         return False
-    mapping = manifest.get("human_feature_mapping")
-    if mapping is not None:
+    # B04-R3-01：缺字段 ≠ 显式 JSON null。只有键不存在时才走可选缺省；
+    # 键存在就必须校验真实类型——isinstance(None, ...) 恒假，四种显式
+    # null（mapping/entities/permission_modules/events）一律 schema_invalid。
+    if "human_feature_mapping" in manifest:
+        mapping = manifest["human_feature_mapping"]
         if not isinstance(mapping, list):
             return False
         for entry in mapping:
@@ -175,18 +178,18 @@ def _manifest_shape_ok(manifest: Any) -> bool:
                 value = entry.get(field)
                 if not isinstance(value, str) or not value:
                     return False
-            events = entry.get("events")
-            if events is not None:
+            if "events" in entry:
+                events = entry["events"]
                 if not isinstance(events, list):
                     return False
                 if any(not isinstance(event, str) for event in events):
                     return False
-    entities = manifest.get("required_entities")
-    if entities is not None:
+    if "required_entities" in manifest:
+        entities = manifest["required_entities"]
         if not isinstance(entities, dict):
             return False
-        modules = entities.get("permission_modules")
-        if modules is not None:
+        if "permission_modules" in entities:
+            modules = entities["permission_modules"]
             if not isinstance(modules, list):
                 return False
             if any(not isinstance(module, str) for module in modules):
