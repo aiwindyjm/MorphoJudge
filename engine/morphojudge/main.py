@@ -22,7 +22,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import SERVICE_NAME, __version__
-from .api.routes import analyses, results
+from .api.routes import analyses, explain, results
 from .contracts.errors import (
     ErrorCode,
     MorphoJudgeError,
@@ -104,6 +104,7 @@ def create_app(settings: DaemonSettings | None = None) -> FastAPI:
 
     app.include_router(analyses.router)
     app.include_router(results.router)
+    app.include_router(explain.router)
 
     @app.exception_handler(MorphoJudgeError)
     async def _morphojudge_error(_: Request, exc: MorphoJudgeError) -> JSONResponse:

@@ -211,9 +211,58 @@ def _migration_0002(connection: sqlite3.Connection) -> None:
     connection.execute("ALTER TABLE analyses ADD COLUMN options_json TEXT")
 
 
+def _migration_0003(connection: sqlite3.Connection) -> None:
+    """Batch-06：解释持久化与远程按次授权审计。
+
+    - explanations 属于一个 analysis（外键），status 只有
+      completed/failed（由应用层保证；校验失败落 failed，绝不冒充完成）。
+    - remote_authorizations 记录每次远程授权：analysis、provider、endpoint
+      主机、发送范围（evidence ID 列表 + 输入摘要）、授权与实际使用时间；
+      `used_at IS NULL` 表示已授权未消费。授权一次性：消费即打标。
+    """
+
+    connection.execute(
+        "CREATE TABLE explanations ("
+        " explanation_id TEXT PRIMARY KEY,"
+        " analysis_id TEXT NOT NULL REFERENCES analyses(analysis_id),"
+        " subject_type TEXT NOT NULL,"
+        " subject_id TEXT NOT NULL,"
+        " provider TEXT NOT NULL,"
+        " model TEXT NOT NULL,"
+        " status TEXT NOT NULL,"
+        " claims_json TEXT NOT NULL,"
+        " uncertainty TEXT NOT NULL DEFAULT '',"
+        " errors_json TEXT NOT NULL DEFAULT '[]',"
+        " context_hash TEXT NOT NULL,"
+        " duration_ms INTEGER,"
+        " authorization_id INTEGER,"
+        " created_at TEXT NOT NULL)"
+    )
+    connection.execute(
+        "CREATE INDEX idx_explanations_subject"
+        " ON explanations(analysis_id, subject_type, subject_id)"
+    )
+    connection.execute(
+        "CREATE TABLE remote_authorizations ("
+        " authorization_id INTEGER PRIMARY KEY AUTOINCREMENT,"
+        " analysis_id TEXT NOT NULL REFERENCES analyses(analysis_id),"
+        " provider TEXT NOT NULL,"
+        " endpoint_host TEXT NOT NULL,"
+        " scope_evidence_ids_json TEXT NOT NULL,"
+        " context_hash TEXT NOT NULL,"
+        " granted_at TEXT NOT NULL,"
+        " used_at TEXT)"
+    )
+    connection.execute(
+        "CREATE INDEX idx_authorizations_analysis"
+        " ON remote_authorizations(analysis_id)"
+    )
+
+
 MIGRATIONS: Sequence[Migration] = (
     Migration(1, "0001_initial", _migration_0001),
     Migration(2, "0002_integrity_and_manifest", _migration_0002),
+    Migration(3, "0003_explanations", _migration_0003),
 )
 
 

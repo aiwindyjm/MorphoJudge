@@ -169,9 +169,9 @@ def wait_for_terminal(client: TestClient, analysis_id: str, timeout: float = 30.
 def test_migrate_fresh_db_then_idempotent(tmp_path: Path):
     db = tmp_path / "data" / "mj.sqlite"
     db.parent.mkdir(parents=True)
-    assert migrate(db) == 2
-    assert current_version(db) == 2
-    assert migrate(db) == 2  # 重复迁移不重复应用
+    assert migrate(db) == 3
+    assert current_version(db) == 3
+    assert migrate(db) == 3  # 重复迁移不重复应用
     with database.reader(db) as connection:
         names = {
             row["name"]
@@ -190,10 +190,10 @@ def test_failed_migration_rolls_back_and_keeps_old_db(tmp_path: Path):
     def _broken(connection) -> None:
         connection.execute("CREATE TABLE broken(oops")
 
-    broken = Migration(3, "0003_broken", _broken)
-    with pytest.raises(RuntimeError, match="0003_broken"):
+    broken = Migration(4, "0004_broken", _broken)
+    with pytest.raises(RuntimeError, match="0004_broken"):
         migrate(db, migrations=(broken,))
-    assert current_version(db) == 2
+    assert current_version(db) == 3
     with database.reader(db) as connection:
         row = connection.execute(
             "SELECT COUNT(*) AS n FROM sqlite_master WHERE name = ?",
@@ -522,7 +522,7 @@ def test_api_status_404_and_error_envelope(harness: Harness):
     response = harness.client.get("/v1/analyses/analysis:missing")
     assert response.status_code == 404
     envelope = response.json()
-    assert envelope["schema_version"] == "1.3.0"
+    assert envelope["schema_version"] == "1.4.0"
     assert envelope["error"]["code"] == "ANALYSIS_NOT_FOUND"
     assert envelope["error"]["retryable"] is False
 

@@ -69,7 +69,7 @@ def test_migration_partial_failure_rolls_back_with_existing_data(tmp_path: Path)
 
     db = tmp_path / "data" / "mj.sqlite"
     db.parent.mkdir(parents=True)
-    assert migrate(db) == 2
+    assert migrate(db) == 3
     with database.writer(db) as connection:
         connection.execute(
             "INSERT INTO repositories (repository_id, name, canonical_path, registered_at)"
@@ -88,9 +88,9 @@ def test_migration_partial_failure_rolls_back_with_existing_data(tmp_path: Path)
         connection_.execute("INSERT INTO audit_partial(id) VALUES (1)")
         connection_.execute("CREATE TABLE broken_after_valid_ddl(")
 
-    with pytest.raises(RuntimeError, match="0003"):
-        migrate(db, migrations=(Migration(3, "0003_partial", partially_broken),))
-    assert current_version(db) == 2
+    with pytest.raises(RuntimeError, match="0004"):
+        migrate(db, migrations=(Migration(4, "0004_partial", partially_broken),))
+    assert current_version(db) == 3
     with database.reader(db) as connection:
         leaked = connection.execute(
             "SELECT COUNT(*) AS n FROM sqlite_master WHERE name = ?",
@@ -103,7 +103,7 @@ def test_migration_partial_failure_rolls_back_with_existing_data(tmp_path: Path)
     def fixed(connection_) -> None:
         connection_.execute("CREATE TABLE audit_ok(id INTEGER PRIMARY KEY)")
 
-    assert migrate(db, migrations=(Migration(3, "0003_fixed", fixed),)) == 3
+    assert migrate(db, migrations=(Migration(4, "0004_fixed", fixed),)) == 4
     with database.reader(db) as connection:
         kept = connection.execute("SELECT COUNT(*) AS n FROM analyses").fetchone()["n"]
     assert kept == 1, "重试迁移保留旧数据"
@@ -452,7 +452,7 @@ def test_specified_routes_exist_with_schema_version(fixture_analysis):
 
     state = client.get(f"/v1/analyses/{analysis_id}")
     assert state.status_code == 200
-    assert state.json()["schema_version"] == "1.3.0"
+    assert state.json()["schema_version"] == "1.4.0"
 
     canonical = client.get(f"/v1/analyses/{analysis_id}/software-map")
     alias = client.get(f"/v1/analyses/{analysis_id}/map")

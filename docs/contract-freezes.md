@@ -51,7 +51,7 @@ Persistence 只写入上游产物；API 只读写 Persistence；Web 只调用 AP
 
 ### F1.4 schema_version
 
-- 全局契约版本常量随 `packages/contracts/schema.json` 顶层 `schema_version` 字段发布。版本历史：`1.0.0` = Batch-01 首发；`1.1.0` = Batch-02 累计向后兼容追加（MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；`1.2.0` = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码，无字段删除或语义变更）；`1.3.0` = Batch-04-R1 兼容追加（API 传输 DTO 进入公开 Schema/TS 契约与漂移验证、`ROUTE_NOT_FOUND`、`AnalysisOptions`，见 Freeze 4 R1 登记）。
+- 全局契约版本常量随 `packages/contracts/schema.json` 顶层 `schema_version` 字段发布。版本历史：`1.0.0` = Batch-01 首发；`1.1.0` = Batch-02 累计向后兼容追加（MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；`1.2.0` = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码，无字段删除或语义变更）；`1.3.0` = Batch-04-R1 兼容追加（API 传输 DTO 进入公开 Schema/TS 契约与漂移验证、`ROUTE_NOT_FOUND`、`AnalysisOptions`，见 Freeze 4 R1 登记）。`1.4.0` = Batch-06 兼容追加（explain 端点 DTO 与 `EXPLAIN_*` 错误码，见 Freeze 4/5 Batch-06 登记）。
 - 语义：向后兼容新增字段 → minor 递增；删除/改语义 → major 递增且必须提交 ACR。JSON Schema 由 Pydantic 模型生成，TS 类型与其保持字段/枚举一致；所有本地 `$ref` 必须可在根 Schema 解析（生成器含同名冲突不变量与引用完整性测试）。
 
 ### F1.5 ID 与可复现语义
@@ -103,9 +103,23 @@ Persistence 只写入上游产物；API 只读写 Persistence；Web 只调用 AP
 
 - 旧库迁移（B04-R2-01）：v1→v2 迁移在同一事务内先检测悬空 review（引用不存在 finding）；存在则显式拒绝并整体回滚（旧表/版本/字段原样保留，错误只含数量不输出 note 原文），不自动删除人工记录。已在旧版迁移中被删除的行无法恢复。执行所有权（R2-02）：单进程范围内同一 (数据库, analysis_id) 只有一个执行者——进程级执行声明，run 生命周期持有、finally 释放、重启后为空不影响恢复；非持有者不产生任何写入。取消（R2-02/03）：取消是否接受由数据库条件写入裁决——取消标记先于 report 提交落库则取消生效（产物保留）；report 先提交终态则取消返回 409 且不改 cancel_requested/updated_at/任何阶段；排队直接取消走同一终态 CAS。取消生效时把仍为 queued/running 的阶段关闭为 skipped 并注明 `cancelled_by_user` 与完成时间（不新增公开枚举）；CAS 未成功不得改写任何行。manifest 深层校验（R2-04）：`human_feature_mapping` 每项必须为 dict 且含字符串 `page`/`feature_id`/`feature`、可选 `events`（字符串列表）、`confirmed_by == "human"`；`required_entities.permission_modules` 每项必须为字符串；违反者进入 `schema_invalid`（digest 保留，分析继续并携带 `manifest:schema_invalid` 限制）；未消费的描述性元数据不受限。
 
+### Freeze 4 Batch-06 登记（explain 端点，兼容追加）
+
+- 端点：`POST /v1/analyses/{id}/explain`（请求体 `{subject_type: finding|node, subject_id, evidence_ids?, provider: fake|ollama|remote, remote_consent?{endpoint, acknowledged}}`；同步执行，200 返回 completed|failed 的 ExplanationPayload）；`GET /v1/analyses/{id}/explain?subject_type&subject_id`（列表）；`GET /v1/analyses/{id}/explain/providers`；`GET /v1/analyses/{id}/explain/authorizations`（远程授权审计）。
+- 错误码追加：`EXPLAIN_SUBJECT_NOT_FOUND`（404）、`EXPLAIN_EVIDENCE_NOT_FOUND`（400，空证据/幻觉/跨分析引用）、`EXPLAIN_PROVIDER_UNAVAILABLE`（503，本地 Ollama 未配置/不可达/模型缺失）、`EXPLAIN_CONSENT_REQUIRED`（403，远程未授权或端点非法）。Provider 失败不自动切换。
+- 契约版本 1.4.0：explain DTO（ExplainRequest/ExplainConsentInput/ExplainClaimItem/ExplanationPayload/ExplainProvidersResponse/RemoteAuthorizationItem/RemoteAuthorizationsPage）进入 schema.json 与 TS 镜像。
+
 ## Freeze 5：V0.1.6-alpha
 
 冻结 Provider 接口、EvidenceContext、Explanation schema、引用校验和远程授权记录。模型输出永远不能改变确定性图。
+
+### Freeze 5 登记（Batch-06 / LLM-001..003）
+
+- EvidenceContext：证据只按 ID 从**当前分析**取（参数化）；空证据 400；跨分析/幻觉引用拒绝；snippet 预算 2000 字符/条、总计 12000、条目 12，超限截断并显式记录 degraded；上下文含 64 位 sha256 输入哈希；prompt 无工具调用、仓库文本置于 UNTRUSTED 围栏内并声明不可信。
+- 输出校验：claims.evidence_ids 必须全部存在于当前上下文；kind ∈ {restatement, inference, unknown}；命令式文本（```bash/shell 块、sudo、curl|sh、shell 链）拒绝；任一 claim 违规则整条解释落库 `status=failed`（含错误原因），绝不冒充 completed。
+- Provider：`fake`（确定性、离线、默认可用）；`ollama`（本地家族——端点必须 http/https 且解析为**环回**地址，拒绝私网/公网冒充本地；拨号直连已解析 IP 防 DNS rebinding；不跟随重定向）；`remote`（远程家族——端点必须**公网**地址，环回/私网/链路本地/保留/组播全拒绝；需同一请求内 `remote_consent{endpoint, acknowledged:true}`，按分析一次性消费）。
+- 授权审计：每次远程授权落 `remote_authorizations`（analysis、provider、endpoint 主机、发送证据 ID 范围、上下文哈希、授权与使用时间）；消费即打标，可经 authorizations 端点查询。
+- 事实边界重申：解释写入（explanations 表）不触碰 findings/evidence/maps/stages/analyses 任何确定性产物；分析状态机不含 explain 阶段；模型不可用/失败不影响既有报告端点。
 
 ## Change Request
 

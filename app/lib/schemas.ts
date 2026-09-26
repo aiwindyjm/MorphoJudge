@@ -8,17 +8,21 @@ import type {
   AnalysisResponse,
   CoverageResponse,
   EvidenceAnchor,
+  ExplainProvidersResponse,
+  ExplainRequest,
+  ExplanationPayload,
   FindingDetail,
   FindingsPage,
   ImpactPathsPage,
   MapResponse,
+  RemoteAuthorizationsPage,
   RepositoriesPage,
   SoftwareMap,
   StageCoverageItem,
   SummaryResponse,
 } from './contracts'
 
-export const SUPPORTED_SCHEMA_VERSION = '1.3.0'
+export const SUPPORTED_SCHEMA_VERSION = '1.4.0'
 
 export class ApiSchemaError extends Error {
   constructor(message: string, readonly path: string) {
@@ -426,6 +430,86 @@ export function isApiError(value: unknown): value is { error: { code: string; me
   } catch {
     return false
   }
+}
+
+// --- Explain（Batch-06 / Freeze 5）---
+
+const checkExplainClaim: Check = (value, path) => {
+  const obj = record(value, path)
+  field(obj, 'schema_version', str, path)
+  field(obj, 'text', str, path)
+  field(obj, 'evidence_ids', strArray, path)
+  field(obj, 'kind', enumOf(['restatement', 'inference', 'unknown'] as const), path)
+}
+
+const checkExplanation: Check = (value, path) => {
+  const obj = record(value, path)
+  field(obj, 'schema_version', str, path)
+  field(obj, 'explanation_id', str, path)
+  field(obj, 'analysis_id', str, path)
+  field(obj, 'subject_type', enumOf(['finding', 'node'] as const), path)
+  field(obj, 'subject_id', str, path)
+  field(obj, 'status', enumOf(['completed', 'failed'] as const), path)
+  field(obj, 'provider', str, path)
+  field(obj, 'model', str, path)
+  field(obj, 'claims', (v, p) => arr(v, p).forEach((item, i) => checkExplainClaim(item, `${p}[${i}]`)), path)
+  field(obj, 'uncertainty', str, path)
+  field(obj, 'errors', strArray, path)
+  field(obj, 'context_hash', str, path)
+  field(obj, 'duration_ms', numOrNull, path, false)
+  field(obj, 'authorization_id', numOrNull, path, false)
+  field(obj, 'created_at', str, path)
+}
+
+const checkExplainProviders: Check = (value, path) => {
+  const obj = record(value, path)
+  field(obj, 'schema_version', str, path)
+  field(obj, 'providers', (v, p) => arr(v, p).forEach((item, i) => {
+    const entry = record(item, `${p}[${i}]`)
+    field(entry, 'provider', str, `${p}[${i}]`)
+    field(entry, 'model', strOrNull, `${p}[${i}]`, false)
+    field(entry, 'available', bool, `${p}[${i}]`)
+    field(entry, 'note', str, `${p}[${i}]`)
+  }), path)
+}
+
+const checkAuthorizations: Check = (value, path) => {
+  const obj = record(value, path)
+  field(obj, 'schema_version', str, path)
+  field(obj, 'items', (v, p) => arr(v, p).forEach((item, i) => {
+    const entry = record(item, `${p}[${i}]`)
+    field(entry, 'schema_version', str, `${p}[${i}]`)
+    field(entry, 'authorization_id', num, `${p}[${i}]`)
+    field(entry, 'provider', str, `${p}[${i}]`)
+    field(entry, 'endpoint_host', str, `${p}[${i}]`)
+    field(entry, 'scope_evidence_ids', strArray, `${p}[${i}]`)
+    field(entry, 'context_hash', str, `${p}[${i}]`)
+    field(entry, 'granted_at', str, `${p}[${i}]`)
+    field(entry, 'used_at', strOrNull, `${p}[${i}]`, false)
+  }), path)
+}
+
+export function parseExplanation(value: unknown): ExplanationPayload {
+  checkExplanation(value, 'explanation')
+  return value as ExplanationPayload
+}
+
+export function parseExplainProviders(value: unknown): ExplainProvidersResponse {
+  checkExplainProviders(value, 'explain-providers')
+  return value as ExplainProvidersResponse
+}
+
+export function parseAuthorizations(value: unknown): RemoteAuthorizationsPage {
+  checkAuthorizations(value, 'authorizations')
+  return value as RemoteAuthorizationsPage
+}
+
+export function explainRequestShape(value: unknown): ExplainRequest {
+  const obj = record(value, 'explain-request')
+  field(obj, 'subject_type', enumOf(['finding', 'node'] as const), 'explain-request')
+  field(obj, 'subject_id', str, 'explain-request')
+  field(obj, 'provider', enumOf(['fake', 'ollama', 'remote'] as const), 'explain-request')
+  return value as ExplainRequest
 }
 
 export type StageCoverageLike = StageCoverageItem

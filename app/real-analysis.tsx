@@ -1,13 +1,15 @@
 'use client'
 
-// WEB-003 真实模式组件：创建表单 / 运行状态 / 真实报告。
+// WEB-003/004 真实模式组件：创建表单 / 运行状态 / 真实报告 / 解释面板。
 // 全部数据来自 daemon 已提交产物；409 未就绪、连接失败、部分产物
 // （failed/cancelled 的 availability=partial）都有明确状态，不造空结论。
-// 复核 / 导出 / 模型解释入口保留位置但禁用并说明（后续批次）。
+// 解释（Batch-06）：四态（idle/loading/failed/completed）、失败重试、
+// 引用证据 ID 可点击定位、模型解释与确定性事实视觉分层；示例模式
+// 的 Fake 演示不经此组件。
 
-import { useMemo, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Icon } from './icons'
-import type { AnalysisResponse, CoverageResponse, EvidenceAnchor, Finding, FindingDetail, FindingsPage, ImpactPathsPage, RepositoriesPage, StageRecord, SummaryResponse } from './lib/contracts'
+import type { AnalysisResponse, CoverageResponse, EvidenceAnchor, ExplainProvidersResponse, ExplanationPayload, Finding, FindingDetail, FindingsPage, ImpactPathsPage, RepositoriesPage, StageRecord, SummaryResponse } from './lib/contracts'
 
 export const CATEGORY_LABEL: Record<string, string> = {
   behavior_network: '网络访问',
@@ -121,18 +123,18 @@ const Section = ({ title, notReady, children }: { title: string; notReady?: stri
   </section>
 )
 
-const EvidenceBlock = ({ anchor }: { anchor: EvidenceAnchor }) => (
+const EvidenceBlock = ({ anchor, onHighlight }: { anchor: EvidenceAnchor; onHighlight?: (evidenceId: string) => void }) => (
   <div className="code evidence-anchor" data-evidence-id={anchor.id}>
     <div className="code-head">
       <span>{anchor.side === 'old' ? '旧侧' : anchor.side === 'new' ? '新侧' : '上下文'} · {anchor.path}</span>
       <span>行 {anchor.start_line}–{anchor.end_line}{anchor.commit ? ` · ${anchor.commit.slice(0, 8)}` : ''}</span>
     </div>
     <pre><code>{anchor.snippet}</code></pre>
-    <small>证据 {anchor.id}{anchor.rule_id ? ` · 规则 ${anchor.rule_id}` : ''} · 这是片段，不是完整方法。</small>
+    <small>证据 {anchor.id}{anchor.rule_id ? ` · 规则 ${anchor.rule_id}` : ''} · 这是片段，不是完整方法。{onHighlight && <button className="text-action" onClick={() => onHighlight(anchor.id)}>解释此证据 →</button>}</small>
   </div>
 )
 
-const FindingDetailBlock = ({ detail }: { detail: FindingDetail }) => {
+const FindingDetailBlock = ({ detail, analysisId, onEvidenceClick }: { detail: FindingDetail; analysisId: string; onEvidenceClick?: (evidenceId: string) => void }) => {
   const finding = detail.finding
   return <div className="evidence">
     <div className="evidence-head">
@@ -147,14 +149,100 @@ const FindingDetailBlock = ({ detail }: { detail: FindingDetail }) => {
         ? <p className="unknown-reason">该发现无证据关联。</p>
         : detail.evidence.length === 0
           ? <p className="unknown-reason">证据详情暂不可用。</p>
-          : detail.evidence.map((anchor) => <EvidenceBlock key={anchor.id} anchor={anchor} />)}
+          : detail.evidence.map((anchor) => <EvidenceBlock key={anchor.id} anchor={anchor} onHighlight={onEvidenceClick} />)}
     <div className="review"><small>人工复核 · 尚未接入（后续批次）</small><div>{(['需调查', '已确认', '误报'] as const).map((state) => <button disabled key={state}>{state}</button>)}</div></div>
   </div>
 }
 
+// --- WEB-004：解释面板（真实模式） ---
+
+export type ExplainPanelHandle = {
+  subjectType: 'finding' | 'node'
+  subjectId: string
+  evidenceIds: string[]
+}
+
+const CLAIM_KIND_LABEL: Record<string, string> = {
+  restatement: '证据复述',
+  inference: '模型推断',
+  unknown: '未知项',
+}
+
+// 解释错误统一格式化：Schema 错误加"契约"前缀，连接错误区分于业务错误
+const formatExplainError = (error: unknown): string => {
+  if (error instanceof Error && error.name === 'ApiSchemaError') return `服务响应不符合契约：${error.message}`
+  if (error instanceof Error && error.name === 'ApiConnectionError') return error.message
+  return error instanceof Error ? error.message : '解释请求失败'
+}
+
+export function ExplainPanel({
+  analysisId, subject, providers, onEvidenceClick,
+}: {
+  analysisId: string
+  subject: ExplainPanelHandle
+  providers: ExplainProvidersResponse | null
+  onEvidenceClick?: (evidenceId: string) => void
+}) {
+  const [state, setState] = useState<'idle' | 'loading' | 'failed' | 'done'>('idle')
+  const [explanation, setExplanation] = useState<ExplanationPayload | null>(null)
+  const [errorText, setErrorText] = useState('')
+  const [provider, setProvider] = useState<'fake' | 'ollama' | 'remote'>('fake')
+  const canExplain = subject.evidenceIds.length > 0
+  const ollamaAvailable = providers?.providers.find((item) => item.provider === 'ollama')?.available === true
+
+  const run = async () => {
+    setState('loading')
+    setErrorText('')
+    try {
+      const { explainSubject, ApiError } = await import('./lib/api')
+      const payload = await explainSubject(analysisId, {
+        subject_type: subject.subjectType,
+        subject_id: subject.subjectId,
+        evidence_ids: subject.evidenceIds,
+        provider,
+      })
+      setExplanation(payload)
+      setState(payload.status === 'completed' ? 'done' : 'failed')
+      if (payload.status === 'failed') setErrorText(payload.errors.join('；') || '模型输出未通过校验')
+    } catch (error) {
+      setState('failed')
+      setErrorText(formatExplainError(error))
+    }
+  }
+
+  return <section className="explain-panel" aria-live="polite">
+    <div className="model-explanation-head">
+      <strong>本地模型解释</strong>
+      <span>{provider === 'fake' ? 'Fake Provider（离线演示）' : provider === 'ollama' ? (ollamaAvailable ? 'Ollama · 本地' : 'Ollama · 不可用') : '远程 · 需按次授权'}</span>
+    </div>
+    <p className="form-hint">解释只引用当前证据，不改确定性图；失败不影响报告。</p>
+    <div className="toolbar-row">
+      <select aria-label="解释 Provider" value={provider} onChange={(event) => setProvider(event.target.value as 'fake' | 'ollama' | 'remote')}>
+        <option value="fake">Fake（离线）</option>
+        <option value="ollama" disabled={!ollamaAvailable}>Ollama{ollamaAvailable ? '' : '（未配置/不可达）'}</option>
+        <option value="remote" disabled>远程（按次授权，待接入确认界面）</option>
+      </select>
+      {state === 'idle' && <button className="outline" disabled={!canExplain} onClick={() => void run()}>{canExplain ? '生成本地解释' : '无证据关联，不能解释'}</button>}
+      {state === 'loading' && <span className="page-status">生成中…</span>}
+      {state === 'failed' && <button className="outline" onClick={() => void run()}>重试</button>}
+      {state === 'done' && explanation && <button className="outline" onClick={() => void run()}>重新生成</button>}
+    </div>
+    {state === 'failed' && <p className="unknown-reason">{errorText || '解释失败；这是模型层失败，不是分析失败。'}</p>}
+    {state === 'done' && explanation && <>
+      {explanation.claims.map((claim, index) => <div className="model-claim" key={`${claim.text.slice(0, 24)}-${index}`}>
+        <span>{CLAIM_KIND_LABEL[claim.kind] ?? claim.kind}</span>
+        <p>{claim.text}</p>
+        {claim.evidence_ids.map((evidenceId) => <button key={evidenceId} className="text-action" onClick={() => onEvidenceClick?.(evidenceId)}>引用 {evidenceId}</button>)}
+      </div>)}
+      {explanation.uncertainty && <small>仍需确认：{explanation.uncertainty}</small>}
+      <small>Provider {explanation.provider} · {explanation.model} · 上下文 {explanation.context_hash.slice(0, 12)}…{explanation.duration_ms != null ? ` · ${explanation.duration_ms}ms` : ''}</small>
+    </>}
+  </section>
+}
+
 export function RealReport({
   analysis, repositoryName, artifacts, findingsCategory, findingsOffset,
-  coverageStatus, coverageOffset, detail, detailLoading,
+  coverageStatus, coverageOffset, detail, detailLoading, explainProviders, onEvidenceHighlight,
   onFindingsCategoryChange, onFindingsPage, onCoverageStatusChange, onCoveragePage, onFindingSelect, onReanalyze, onOpenMap,
 }: {
   analysis: AnalysisResponse
@@ -166,6 +254,8 @@ export function RealReport({
   coverageOffset: number
   detail: FindingDetail | null
   detailLoading: boolean
+  explainProviders: ExplainProvidersResponse | null
+  onEvidenceHighlight: (evidenceId: string) => void
   onFindingsCategoryChange: (value: string) => void
   onFindingsPage: (delta: number) => void
   onCoverageStatusChange: (value: string) => void
@@ -259,7 +349,15 @@ export function RealReport({
                 <span className="chevron">›</span>
               </button>)}
           </div>
-          <div>{detailLoading ? <div className="linked-empty">正在读取证据…</div> : detail ? <FindingDetailBlock detail={detail} /> : <div className="linked-empty">左侧选择一条发现查看证据定位。</div>}</div>
+          <div>{detailLoading ? <div className="linked-empty">正在读取证据…</div> : detail ? <>
+            <FindingDetailBlock detail={detail} analysisId={analysis.analysis_id} onEvidenceClick={onEvidenceHighlight} />
+            <ExplainPanel
+              analysisId={analysis.analysis_id}
+              subject={{ subjectType: 'finding', subjectId: detail.finding.id, evidenceIds: detail.finding.evidence_ids }}
+              providers={explainProviders}
+              onEvidenceClick={onEvidenceHighlight}
+            />
+          </> : <div className="linked-empty">左侧选择一条发现查看证据定位。</div>}</div>
         </div>
       </>}
     </Section>

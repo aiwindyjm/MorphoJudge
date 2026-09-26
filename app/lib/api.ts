@@ -2,12 +2,15 @@
 // （Next 服务端白名单代理转发到 daemon），绝不直连容器服务名。
 // 每个响应先经 schemas.ts 运行时校验；失败抛 ApiSchemaError，不静默降级。
 
-import type { AnalysisResponse, CoverageResponse, FindingDetail, FindingsPage, ImpactPathsPage, MapResponse, RepositoriesPage, SummaryResponse } from './contracts'
+import type { AnalysisResponse, CoverageResponse, ExplainProvidersResponse, ExplanationPayload, FindingDetail, FindingsPage, ImpactPathsPage, MapResponse, RemoteAuthorizationsPage, RepositoriesPage, SummaryResponse } from './contracts'
 import {
   ApiSchemaError,
   isApiError,
   parseAnalysis,
+  parseAuthorizations,
   parseCoverage,
+  parseExplainProviders,
+  parseExplanation,
   parseFindingDetail,
   parseFindingsPage,
   parseImpactPaths,
@@ -190,4 +193,42 @@ export async function getFindingDetail(
   signal?: AbortSignal,
 ): Promise<FindingDetail> {
   return parseFindingDetail(await request(`/analyses/${encodeURIComponent(analysisId)}/findings/${encodeURIComponent(findingId)}`, { signal }))
+}
+
+// --- Explain（Batch-06 / Freeze 5）---
+
+export type ExplainProviderName = 'fake' | 'ollama' | 'remote'
+
+export async function explainSubject(
+  analysisId: string,
+  input: { subject_type: 'finding' | 'node'; subject_id: string; evidence_ids?: string[]; provider: ExplainProviderName },
+  signal?: AbortSignal,
+): Promise<ExplanationPayload> {
+  return parseExplanation(await request(`/analyses/${encodeURIComponent(analysisId)}/explain`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+    signal,
+  }))
+}
+
+export async function listExplanations(
+  analysisId: string,
+  params: { subject_type?: 'finding' | 'node'; subject_id?: string } = {},
+  signal?: AbortSignal,
+): Promise<ExplanationPayload[]> {
+  const raw = await request(`/analyses/${encodeURIComponent(analysisId)}/explain${queryString({ subject_type: params.subject_type, subject_id: params.subject_id })}`, { signal })
+  const items = Array.isArray(raw) ? raw : failAsSchema('explain list')
+  return items.map((item) => parseExplanation(item))
+}
+
+export async function getExplainProviders(analysisId: string, signal?: AbortSignal): Promise<ExplainProvidersResponse> {
+  return parseExplainProviders(await request(`/analyses/${encodeURIComponent(analysisId)}/explain/providers`, { signal }))
+}
+
+export async function getRemoteAuthorizations(analysisId: string, signal?: AbortSignal): Promise<RemoteAuthorizationsPage> {
+  return parseAuthorizations(await request(`/analyses/${encodeURIComponent(analysisId)}/explain/authorizations`, { signal }))
+}
+
+const failAsSchema = (what: string): never => {
+  throw new ApiSchemaError('响应结构不符合契约', what)
 }

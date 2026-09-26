@@ -16,8 +16,9 @@
 // 契约版本历史（F1.4）：1.0.0 = Batch-01 首发；1.1.0 = Batch-02 累计向后兼容追加
 // （MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；
 // 1.2.0 = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码）；
-// 1.3.0 = Batch-04-R1 兼容追加（API DTO 入公开契约、ROUTE_NOT_FOUND、AnalysisOptions）。
-export const SCHEMA_VERSION = '1.3.0';
+// 1.3.0 = Batch-04-R1 兼容追加（API DTO 入公开契约、ROUTE_NOT_FOUND、AnalysisOptions）；
+// 1.4.0 = Batch-06 兼容追加（explain 端点 DTO 与 EXPLAIN_* 错误码）。
+export const SCHEMA_VERSION = '1.4.0';
 
 // ---------------------------------------------------------------------------
 // Enums (single-line literal unions; keep values byte-identical with Python)
@@ -117,7 +118,11 @@ export type ErrorCode =
   | 'REPOSITORY_NOT_REGISTERED'
   | 'FINDING_NOT_FOUND'
   | 'EVIDENCE_NOT_FOUND'
-  | 'ROUTE_NOT_FOUND';
+  | 'ROUTE_NOT_FOUND'
+  | 'EXPLAIN_SUBJECT_NOT_FOUND'
+  | 'EXPLAIN_EVIDENCE_NOT_FOUND'
+  | 'EXPLAIN_PROVIDER_UNAVAILABLE'
+  | 'EXPLAIN_CONSENT_REQUIRED';
 
 // ---------------------------------------------------------------------------
 // Snapshot identity (GIT-001)
@@ -511,4 +516,77 @@ export interface ReviewsPage {
   readonly items: Review[];
   readonly total: number;
   readonly availability: Availability;
+}
+
+// ---------------------------------------------------------------------------
+// Explain transport contracts (Batch-06 / Freeze 5 登记)
+// 模型输出永不改变确定性图；failed 不冒充 completed。
+// ---------------------------------------------------------------------------
+
+export interface ExplainConsentInput {
+  readonly schema_version: string;
+  readonly endpoint: string;
+  readonly acknowledged: boolean;
+}
+
+export interface ExplainRequest {
+  readonly schema_version: string;
+  readonly subject_type: 'finding' | 'node';
+  readonly subject_id: string;
+  readonly evidence_ids: string[] | null;
+  readonly provider: 'fake' | 'ollama' | 'remote';
+  readonly remote_consent: ExplainConsentInput | null;
+}
+
+export interface ExplainClaimItem {
+  readonly schema_version: string;
+  readonly text: string;
+  readonly evidence_ids: string[];
+  readonly kind: 'restatement' | 'inference' | 'unknown';
+}
+
+export interface ExplanationPayload {
+  readonly schema_version: string;
+  readonly explanation_id: string;
+  readonly analysis_id: string;
+  readonly subject_type: string;
+  readonly subject_id: string;
+  readonly status: 'completed' | 'failed';
+  readonly provider: string;
+  readonly model: string;
+  readonly claims: ExplainClaimItem[];
+  readonly uncertainty: string;
+  readonly errors: string[];
+  readonly context_hash: string;
+  readonly duration_ms: number | null;
+  readonly authorization_id: number | null;
+  readonly created_at: string;
+}
+
+export interface ExplainProviderInfo {
+  readonly provider: string;
+  readonly model: string | null;
+  readonly available: boolean;
+  readonly note: string;
+}
+
+export interface ExplainProvidersResponse {
+  readonly schema_version: string;
+  readonly providers: ExplainProviderInfo[];
+}
+
+export interface RemoteAuthorizationItem {
+  readonly schema_version: string;
+  readonly authorization_id: number;
+  readonly provider: string;
+  readonly endpoint_host: string;
+  readonly scope_evidence_ids: string[];
+  readonly context_hash: string;
+  readonly granted_at: string;
+  readonly used_at: string | null;
+}
+
+export interface RemoteAuthorizationsPage {
+  readonly schema_version: string;
+  readonly items: RemoteAuthorizationItem[];
 }

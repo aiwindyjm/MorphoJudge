@@ -7,7 +7,7 @@ import { fixture } from './software-map/fixture'
 import type { Finding, FindingDetail, FindingsPage, ImpactPathsPage, SoftwareMap } from './lib/contracts'
 import {
   ApiConnectionError, ApiError, cancelAnalysis, createAnalysis, getAnalysis,
-  getCoverage, getFindingDetail, getFindings, getImpactPaths, getRepositories, getSoftwareMap, getSummary, isTerminal,
+  getCoverage, getExplainProviders, getFindingDetail, getFindings, getImpactPaths, getRepositories, getSoftwareMap, getSummary, isTerminal,
 } from './lib/api'
 import { ApiSchemaError } from './lib/schemas'
 import { RealArtifacts, RealReport, RealRunning, RealSetup, type FindingListItem } from './real-analysis'
@@ -76,6 +76,7 @@ export default function Home() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [mapSide, setMapSide] = useState<'target' | 'base'>('target')
   const [serviceMap, setServiceMap] = useState<SoftwareMap | null>(null)
+  const [explainProviders, setExplainProviders] = useState<import('./lib/contracts').ExplainProvidersResponse | null>(null)
   const [impactPage, setImpactPage] = useState<ImpactPathsPage | null>(null)
   const [consistencyFindings, setConsistencyFindings] = useState<Finding[]>([])
   const artifactsLoadedFor = useRef<string | null>(null)
@@ -182,6 +183,17 @@ export default function Home() {
     if (mode !== 'real' || !analysis || !isTerminal(analysis.status)) return
     setStep((current) => (current === 'running' ? 'report' : current))
   }, [mode, analysis])
+
+  // 终态后拉取解释 Provider 状态（失败静默：面板显示未知配置）。
+  useEffect(() => {
+    if (mode !== 'real' || !analysisId || !analysis || !isTerminal(analysis.status)) return
+    if (artifactsLoadedFor.current !== analysisId) return
+    let stale = false
+    void getExplainProviders(analysisId)
+      .then((providers) => { if (!stale) setExplainProviders(providers) })
+      .catch(() => { if (!stale) setExplainProviders(null) })
+    return () => { stale = true }
+  }, [mode, analysisId, analysis?.status])
 
   // 发现分页/过滤（服务端分页；过滤变更重置 offset；防迟到响应串页）。
   useEffect(() => {
@@ -336,7 +348,8 @@ export default function Home() {
           ? <Report findings={findings} visible={visible} selected={selected} setSelected={setSelected} filter={filter} setFilter={setFilter} updateStatus={updateStatus} />
           : analysis ? <RealReport analysis={analysis} repositoryName={repositoryName} artifacts={artifacts}
               findingsCategory={findingsCategory} findingsOffset={findingsOffset} coverageStatus={coverageStatus} coverageOffset={coverageOffset}
-              detail={detail} detailLoading={detailLoading}
+              detail={detail} detailLoading={detailLoading} explainProviders={explainProviders}
+              onEvidenceHighlight={(evidenceId) => { const node = document.querySelector(`[data-evidence-id="${CSS.escape(evidenceId)}"]`); node?.scrollIntoView({ block: 'center' }); (node as HTMLElement | null)?.classList.add('evidence-flash'); window.setTimeout(() => node?.classList.remove('evidence-flash'), 1600) }}
               onFindingsCategoryChange={(value) => { setFindingsCategory(value); setFindingsOffset(0); setDetail(null) }}
               onFindingsPage={(delta) => setFindingsOffset((value) => Math.max(0, value + delta * 20))}
               onCoverageStatusChange={(value) => { setCoverageStatus(value); setCoverageOffset(0) }}

@@ -13,7 +13,8 @@ const UPSTREAM_TIMEOUT_MS = 60_000
 
 type Rule = { method: 'GET' | 'POST'; pattern: RegExp }
 
-// 固定白名单：只放行本批需要的 repositories、创建/状态/取消与结果 GET。
+// 固定白名单：只放行本批需要的 repositories、创建/状态/取消、结果 GET
+// 与 explain（Batch-06）。
 const RULES: Rule[] = [
   { method: 'GET', pattern: /^v1\/repositories$/ },
   { method: 'POST', pattern: /^v1\/analyses$/ },
@@ -23,9 +24,12 @@ const RULES: Rule[] = [
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/findings$/ },
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/findings\/[^/]+$/ },
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/evidence\/[^/]+$/ },
+  { method: 'POST', pattern: /^v1\/analyses\/[^/]+\/explain$/ },
+  { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/explain$/ },
+  { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/explain\/(providers|authorizations)$/ },
 ]
 
-const ALLOWED_QUERY_KEYS = new Set(['side', 'status', 'category', 'rule_id', 'limit', 'offset'])
+const ALLOWED_QUERY_KEYS = new Set(['side', 'status', 'category', 'rule_id', 'limit', 'offset', 'subject_type', 'subject_id'])
 const SEGMENT_RE = /^[A-Za-z0-9:_@.-]{1,200}$/
 
 const errorBody = (code: string, message: string, retryable: boolean) => ({

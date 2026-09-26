@@ -230,9 +230,74 @@ class ReviewsPage(ApiContractModel):
     availability: Availability
 
 
+# ---------------------------------------------------------------------------
+# Explain DTO（Batch-06 / Freeze 5 登记）
+# ---------------------------------------------------------------------------
+
+class ExplainConsentInput(ApiContractModel):
+    endpoint: str = Field(min_length=8, max_length=500)
+    acknowledged: bool
+
+
+class ExplainRequest(ApiContractModel):
+    subject_type: str = Field(pattern="^(finding|node)$")
+    subject_id: str = Field(min_length=1, max_length=300)
+    evidence_ids: list[str] | None = None
+    provider: str = Field(default="fake", pattern="^(fake|ollama|remote)$")
+    remote_consent: ExplainConsentInput | None = None
+
+
+class ExplainClaimItem(ApiContractModel):
+    text: str
+    evidence_ids: list[str]
+    kind: str
+
+
+class ExplanationPayload(ApiContractModel):
+    explanation_id: str
+    analysis_id: str
+    subject_type: str
+    subject_id: str
+    status: str  # completed | failed
+    provider: str
+    model: str
+    claims: list[ExplainClaimItem]
+    uncertainty: str
+    errors: list[str]
+    context_hash: str
+    duration_ms: int | None
+    authorization_id: int | None
+    created_at: str
+
+
+class ExplainProvidersResponse(ApiContractModel):
+    providers: list[dict[str, Any]]
+
+
+class RemoteAuthorizationItem(ApiContractModel):
+    authorization_id: int
+    provider: str
+    endpoint_host: str
+    scope_evidence_ids: list[str]
+    context_hash: str
+    granted_at: str
+    used_at: str | None
+
+
+class RemoteAuthorizationsPage(ApiContractModel):
+    items: list[RemoteAuthorizationItem]
+
+
 # 注册进 packages/contracts/schema.json 的 API DTO（export.py 消费）
 API_CONTRACT_MODELS: list[type[ContractModel]] = [
     AnalysisCounts,
+    ExplainClaimItem,
+    ExplainConsentInput,
+    ExplainProvidersResponse,
+    ExplainRequest,
+    ExplanationPayload,
+    RemoteAuthorizationItem,
+    RemoteAuthorizationsPage,
     AnalysisOptions,
     AnalysisResponse,
     Availability,

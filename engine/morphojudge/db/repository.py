@@ -796,6 +796,137 @@ class AnalysisRepository:
             ).fetchall()
         return list(rows)
 
+    # ------------------------------------------------------------------
+    # Explanations & remote authorizations (Batch-06 / LLM-001..003)
+    # ------------------------------------------------------------------
+
+    def save_explanation(
+        self,
+        *,
+        analysis_id: str,
+        subject_type: str,
+        subject_id: str,
+        provider: str,
+        model: str,
+        status: str,
+        claims: list[dict[str, Any]],
+        uncertainty: str,
+        errors: list[str],
+        context_hash: str,
+        duration_ms: int | None,
+        authorization_id: int | None,
+    ) -> str:
+        explanation_id = f"explanation:{context_hash[:16]}:{len(self.list_explanations(analysis_id)) + 1}"
+        with writer(self.db_path) as connection:
+            connection.execute(
+                "INSERT INTO explanations"
+                " (explanation_id, analysis_id, subject_type, subject_id, provider,"
+                "  model, status, claims_json, uncertainty, errors_json,"
+                "  context_hash, duration_ms, authorization_id, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    explanation_id,
+                    analysis_id,
+                    subject_type,
+                    subject_id,
+                    provider,
+                    model,
+                    status,
+                    json.dumps(claims, ensure_ascii=True),
+                    uncertainty,
+                    json.dumps(errors, ensure_ascii=True),
+                    context_hash,
+                    duration_ms,
+                    authorization_id,
+                    utc_now(),
+                ),
+            )
+        return explanation_id
+
+    def list_explanations(
+        self,
+        analysis_id: str,
+        *,
+        subject_type: str | None = None,
+        subject_id: str | None = None,
+    ) -> list[sqlite3.Row]:
+        with reader(self.db_path) as connection:
+            if subject_type is None:
+                rows = connection.execute(
+                    "SELECT * FROM explanations WHERE analysis_id = ?"
+                    " ORDER BY rowid DESC LIMIT 200",
+                    (analysis_id,),
+                ).fetchall()
+            else:
+                rows = connection.execute(
+                    "SELECT * FROM explanations WHERE analysis_id = ?"
+                    " AND subject_type = ? AND subject_id = ?"
+                    " ORDER BY rowid DESC LIMIT 50",
+                    (analysis_id, subject_type, subject_id),
+                ).fetchall()
+        return list(rows)
+
+    def get_explanation(self, analysis_id: str, explanation_id: str) -> sqlite3.Row | None:
+        with reader(self.db_path) as connection:
+            return connection.execute(
+                "SELECT * FROM explanations"
+                " WHERE analysis_id = ? AND explanation_id = ?",
+                (analysis_id, explanation_id),
+            ).fetchone()
+
+    def record_remote_authorization(
+        self,
+        *,
+        analysis_id: str,
+        provider: str,
+        endpoint_host: str,
+        scope_evidence_ids: list[str],
+        context_hash: str,
+    ) -> int:
+        with writer(self.db_path) as connection:
+            cursor = connection.execute(
+                "INSERT INTO remote_authorizations"
+                " (analysis_id, provider, endpoint_host, scope_evidence_ids_json,"
+                "  context_hash, granted_at, used_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, NULL)",
+                (
+                    analysis_id,
+                    provider,
+                    endpoint_host,
+                    json.dumps(scope_evidence_ids, ensure_ascii=True),
+                    context_hash,
+                    utc_now(),
+                ),
+            )
+            return int(cursor.lastrowid or 0)
+
+    def consume_remote_authorization(self, analysis_id: str, provider: str) -> int | None:
+        """一次性消费：取最早未用的授权并打标；无可用授权返回 None。"""
+
+        with writer(self.db_path) as connection:
+            row = connection.execute(
+                "SELECT authorization_id FROM remote_authorizations"
+                " WHERE analysis_id = ? AND provider = ? AND used_at IS NULL"
+                " ORDER BY authorization_id LIMIT 1",
+                (analysis_id, provider),
+            ).fetchone()
+            if row is None:
+                return None
+            connection.execute(
+                "UPDATE remote_authorizations SET used_at = ? WHERE authorization_id = ?",
+                (utc_now(), row["authorization_id"]),
+            )
+            return int(row["authorization_id"])
+
+    def list_remote_authorizations(self, analysis_id: str) -> list[sqlite3.Row]:
+        with reader(self.db_path) as connection:
+            rows = connection.execute(
+                "SELECT * FROM remote_authorizations WHERE analysis_id = ?"
+                " ORDER BY authorization_id DESC",
+                (analysis_id,),
+            ).fetchall()
+        return list(rows)
+
 
 def is_terminal_status(status: str) -> bool:
     return status in _TERMINAL_STATUSES

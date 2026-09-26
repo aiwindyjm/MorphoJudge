@@ -437,5 +437,5 @@ def test_v1_0_0_map_edge_input_still_validates():
     }
     edge = MapEdge.model_validate(legacy)
     assert edge.file_path is None and edge.line is None
-    # F1.4：当前契约版本（1.3.0 = Batch-04-R1 API DTO 兼容追加）。
-    assert SCHEMA_VERSION == "1.3.0"
+    # F1.4：当前契约版本（1.4.0 = Batch-06 explain DTO 兼容追加）。
+    assert SCHEMA_VERSION == "1.4.0"

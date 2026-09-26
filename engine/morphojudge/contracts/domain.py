@@ -24,9 +24,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 # 契约版本历史（F1.4）：1.0.0 = Batch-01 首发；1.1.0 = Batch-02 累计向后兼容追加
 # （MapNode.note、SoftwareMap、MapEdge.file_path/line、FileParseReport、ParseStatus）；
 # 1.2.0 = Batch-04 兼容追加（ErrorCode 新增 6 个 API 错误码）；
-# 1.3.0 = Batch-04-R1 兼容追加（API DTO 进入公开 Schema/TS、ROUTE_NOT_FOUND、
-# AnalysisOptions 等，见 contract-freezes.md Freeze 4 R1 登记）。
-SCHEMA_VERSION = "1.3.0"
+# 1.3.0 = Batch-04-R1 兼容追加（API 传输 DTO 进入公开 Schema/TS 契约与漂移验证、
+# ROUTE_NOT_FOUND、AnalysisOptions 等，见 contract-freezes.md Freeze 4 R1 登记）；
+# 1.4.0 = Batch-06 兼容追加（explain 端点 DTO 与 4 个 EXPLAIN_* 错误码，
+# 见 contract-freezes.md Freeze 4/5 Batch-06 登记）。
+SCHEMA_VERSION = "1.4.0"
 
 _COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 _RULE_ID_RE = re.compile(r"^[A-Z][A-Z0-9]*(-[A-Z0-9]+)*$")

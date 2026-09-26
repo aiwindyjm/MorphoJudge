@@ -95,7 +95,7 @@ def test_migration_keeps_valid_v1_reviews(tmp_path: Path):
             "INSERT INTO reviews (analysis_id, finding_id, state, note, updated_at)"
             " VALUES ('a1', 'finding:real', 'confirmed', '人工备注 keep', '2026-01-02T00:00:00Z')"
         )
-    assert migrate(db) == 2
+    assert migrate(db) == 3
     with database.reader(db) as connection:
         rows = connection.execute("SELECT * FROM reviews").fetchall()
     assert len(rows) == 1
@@ -152,14 +152,14 @@ def test_migration_mixed_valid_and_dangling_refused_atomically(tmp_path: Path):
 
 def test_migration_v2_idempotent_and_future_rejected(tmp_path: Path):
     db = tmp_path / "fresh.sqlite"
-    assert migrate(db) == 2
-    assert migrate(db) == 2, "已升级 v2 的库重复启动是幂等 no-op"
+    assert migrate(db) == 3
+    assert migrate(db) == 3, "已升级的库重复启动是幂等 no-op"
 
     def future(connection_) -> None:
         connection_.execute("CREATE TABLE future_only(id INTEGER PRIMARY KEY)")
 
     newer = tmp_path / "newer.sqlite"
-    migrate(newer, (Migration(1, "0001", lambda c: None), Migration(2, "0002", lambda c: None), Migration(3, "0003_future", future)))
+    migrate(newer, (Migration(1, "0001", lambda c: None), Migration(2, "0002", lambda c: None), Migration(3, "0003", lambda c: None), Migration(4, "0004_future", future)))
     with pytest.raises(RuntimeError, match="newer than supported"):
         migrate(newer)
 
