@@ -7,7 +7,7 @@
 // 引用证据 ID 可点击定位、模型解释与确定性事实视觉分层；示例模式
 // 的 Fake 演示不经此组件。
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Icon } from './icons'
 import type { AnalysisResponse, CoverageResponse, EvidenceAnchor, ExplainProvidersResponse, ExplanationPayload, Finding, FindingDetail, FindingsPage, ImpactPathsPage, RepositoriesPage, StageRecord, SummaryResponse } from './lib/contracts'
 
@@ -134,8 +134,42 @@ const EvidenceBlock = ({ anchor, onHighlight }: { anchor: EvidenceAnchor; onHigh
   </div>
 )
 
-const FindingDetailBlock = ({ detail, analysisId, onEvidenceClick }: { detail: FindingDetail; analysisId: string; onEvidenceClick?: (evidenceId: string) => void }) => {
+const REVIEW_STATES: Array<{ value: 'unreviewed' | 'needs-investigation' | 'confirmed' | 'dismissed'; label: string }> = [
+  { value: 'unreviewed', label: '待复核' },
+  { value: 'needs-investigation', label: '需调查' },
+  { value: 'confirmed', label: '已确认' },
+  { value: 'dismissed', label: '误报' },
+]
+
+const FindingDetailBlock = ({ detail, analysisId, onEvidenceClick, onReviewChange }: {
+  detail: FindingDetail
+  analysisId: string
+  onEvidenceClick?: (evidenceId: string) => void
+  onReviewChange?: (findingId: string, state: string, note: string) => Promise<void>
+}) => {
   const finding = detail.finding
+  const [reviewState, setReviewState] = useState(detail.review_state)
+  const [reviewNote, setReviewNote] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [savedAt, setSavedAt] = useState('')
+
+  useEffect(() => { setReviewState(detail.review_state) }, [detail.review_state, detail.finding.id])
+
+  const submitReview = async (state: typeof detail.review_state) => {
+    const previous = reviewState
+    setReviewState(state)
+    if (!onReviewChange) return
+    setSaving(true)
+    try {
+      await onReviewChange(finding.id, state, reviewNote)
+      setSavedAt(new Date().toLocaleTimeString('zh-CN'))
+    } catch {
+      setReviewState(previous)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return <div className="evidence">
     <div className="evidence-head">
       <span className="evidence-id">{finding.id}</span>
@@ -150,7 +184,15 @@ const FindingDetailBlock = ({ detail, analysisId, onEvidenceClick }: { detail: F
         : detail.evidence.length === 0
           ? <p className="unknown-reason">证据详情暂不可用。</p>
           : detail.evidence.map((anchor) => <EvidenceBlock key={anchor.id} anchor={anchor} onHighlight={onEvidenceClick} />)}
-    <div className="review"><small>人工复核 · 尚未接入（后续批次）</small><div>{(['需调查', '已确认', '误报'] as const).map((state) => <button disabled key={state}>{state}</button>)}</div></div>
+    <div className="review">
+      <small>人工复核 {savedAt && <span className="tag">已保存 {savedAt}</span>}</small>
+      <div>
+        {REVIEW_STATES.map(({ value, label }) =>
+          <button key={value} className={reviewState === value ? 'review-active' : ''} disabled={saving} onClick={() => void submitReview(value)}>{label}</button>)}
+      </div>
+      {reviewState === 'confirmed' && <p className="form-hint">该发现描述成立，<strong>不代表软件整体安全</strong>。</p>}
+      <input aria-label="复核备注" placeholder="备注（仅本地保存）" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} onBlur={() => void submitReview(reviewState)} />
+    </div>
   </div>
 }
 
@@ -243,7 +285,7 @@ export function ExplainPanel({
 export function RealReport({
   analysis, repositoryName, artifacts, findingsCategory, findingsOffset,
   coverageStatus, coverageOffset, detail, detailLoading, explainProviders, onEvidenceHighlight,
-  onFindingsCategoryChange, onFindingsPage, onCoverageStatusChange, onCoveragePage, onFindingSelect, onReanalyze, onOpenMap,
+  onFindingsCategoryChange, onFindingsPage, onCoverageStatusChange, onCoveragePage, onFindingSelect, onReanalyze, onOpenMap, onReviewChange,
 }: {
   analysis: AnalysisResponse
   repositoryName: string
@@ -263,6 +305,7 @@ export function RealReport({
   onFindingSelect: (finding: FindingListItem) => void
   onReanalyze: () => void
   onOpenMap: () => void
+  onReviewChange: (findingId: string, state: string, note: string) => Promise<void>
 }) {
   const summary = artifacts.summary
   const statusText = STATUS_LABEL[analysis.status] ?? analysis.status
@@ -278,7 +321,8 @@ export function RealReport({
         {analysis.cancel_requested && analysis.status !== 'cancelled' && <p className="form-hint">已请求取消；分析在阶段边界停止。</p>}
       </div>
       <div className="report-actions">
-        <button className="outline" disabled title="导出属于后续批次">导出报告（尚未接入）</button>
+        <button className="outline" onClick={() => { window.open(`/api/daemon/v1/analyses/${encodeURIComponent(analysis.analysis_id)}/report?format=markdown`, '_blank') }}>导出 Markdown</button>
+        <button className="outline" onClick={() => { window.open(`/api/daemon/v1/analyses/${encodeURIComponent(analysis.analysis_id)}/report?format=json`, '_blank') }}>导出 JSON</button>
         <button className="outline" onClick={onOpenMap}>查看关系图 →</button>
         <button className="outline" onClick={onReanalyze}>重新分析（新任务）</button>
       </div>
@@ -350,7 +394,7 @@ export function RealReport({
               </button>)}
           </div>
           <div>{detailLoading ? <div className="linked-empty">正在读取证据…</div> : detail ? <>
-            <FindingDetailBlock detail={detail} analysisId={analysis.analysis_id} onEvidenceClick={onEvidenceHighlight} />
+            <FindingDetailBlock detail={detail} analysisId={analysis.analysis_id} onEvidenceClick={onEvidenceHighlight} onReviewChange={onReviewChange} />
             <ExplainPanel
               analysisId={analysis.analysis_id}
               subject={{ subjectType: 'finding', subjectId: detail.finding.id, evidenceIds: detail.finding.evidence_ids }}

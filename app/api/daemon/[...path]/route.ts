@@ -24,12 +24,15 @@ const RULES: Rule[] = [
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/findings$/ },
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/findings\/[^/]+$/ },
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/evidence\/[^/]+$/ },
+  { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/report$/ },
+  { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/reviews$/ },
+  { method: 'POST', pattern: /^v1\/analyses\/[^/]+\/reviews$/ },
   { method: 'POST', pattern: /^v1\/analyses\/[^/]+\/explain$/ },
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/explain$/ },
   { method: 'GET', pattern: /^v1\/analyses\/[^/]+\/explain\/(providers|authorizations)$/ },
 ]
 
-const ALLOWED_QUERY_KEYS = new Set(['side', 'status', 'category', 'rule_id', 'limit', 'offset', 'subject_type', 'subject_id'])
+const ALLOWED_QUERY_KEYS = new Set(['side', 'status', 'category', 'rule_id', 'limit', 'offset', 'subject_type', 'subject_id', 'format'])
 const SEGMENT_RE = /^[A-Za-z0-9:_@.-]{1,200}$/
 
 const errorBody = (code: string, message: string, retryable: boolean) => ({

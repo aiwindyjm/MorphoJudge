@@ -355,6 +355,16 @@ export default function Home() {
               onCoverageStatusChange={(value) => { setCoverageStatus(value); setCoverageOffset(0) }}
               onCoveragePage={(delta) => setCoverageOffset((value) => Math.max(0, value + delta * 20))}
               onFindingSelect={(item) => void selectFinding(item)}
+              onReviewChange={async (findingId, state, note) => {
+                if (!analysisId) return
+                const response = await fetch(`/api/daemon/v1/analyses/${encodeURIComponent(analysisId)}/reviews`, {
+                  method: 'POST',
+                  headers: { 'content-type': 'application/json' },
+                  body: JSON.stringify({ finding_id: findingId, state, note }),
+                })
+                if (!response.ok) throw new Error(`复核保存失败：${response.status}`)
+                setDetail((current) => current && current.finding.id === findingId ? { ...current, review_state: state as typeof current.review_state } : current)
+              }}
               onReanalyze={() => void startRealAnalysis()}
               onOpenMap={() => navigate('map', 'graph')} />
           : <div className="linked-empty" role="status">没有可显示的分析。请先在“新建分析”创建，或切换回示例模式。</div>)}

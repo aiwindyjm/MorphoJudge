@@ -24,6 +24,8 @@ PRD 0.23：Batch 是完整能力交付单位，Task 是内部追溯项，不逐�
 
 ## Batch-03 / V0.1.2-alpha：规则、证据与发现
 
+验收状态：定向抽查通过，独立验收欠账闭合（2026-09-26，见 [PRIVATE/verification/2026-09-26-b06-codex/audit.md](../PRIVATE/verification/2026-09-26-b06-codex/audit.md) B03 抽查节）。8 项反例中 5 项直接通过，3 项探针 fixture 偏差经既有 352 项回归测试覆盖确认。因非完整独立验收流程，不标 PASSED。
+
 任务：BEH-001、DEP-001、EVD-001、ANL-001、TEST-001、SEC-001。
 依赖：Batch-02 PASSED。
 产出：行为/依赖/一致性 Finding、EvidenceAnchor、RelationPath 和影响查询。
