@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 
 import tree_sitter
 import tree_sitter_javascript
+import tree_sitter_python
 import tree_sitter_typescript
 from tree_sitter import Node
 
@@ -31,6 +32,7 @@ _LANGUAGE_BY_EXTENSION: dict[str, str] = {
     ".jsx": "javascript",
     ".mjs": "javascript",
     ".cjs": "javascript",
+    ".py": "python",
 }
 
 
@@ -88,6 +90,8 @@ def _parser_for(language: str) -> tree_sitter.Parser:
             grammar = tree_sitter_typescript.language_tsx()
         elif language == "javascript":
             grammar = tree_sitter_javascript.language()
+        elif language == "python":
+            grammar = tree_sitter_python.language()
         else:
             raise ValueError(f"unsupported language: {language}")
         parser = tree_sitter.Parser(tree_sitter.Language(grammar))

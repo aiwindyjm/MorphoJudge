@@ -56,7 +56,7 @@ LANGUAGE_BY_EXTENSION: dict[str, str] = {
     ".woff2": "font",
 }
 
-SUPPORTED_LANGUAGES = frozenset({"typescript", "javascript"})
+SUPPORTED_LANGUAGES = frozenset({"typescript", "javascript", "python"})
 
 CREDENTIAL_BASENAMES = frozenset(
     {

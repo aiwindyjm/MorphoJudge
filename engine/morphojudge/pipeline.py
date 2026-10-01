@@ -29,13 +29,15 @@ from .git.blob import list_tree_blobs, read_blob_bytes
 from .git.snapshot import SnapshotReport
 from .parser import extract as ex
 from .parser import relations as rel
+from .parser import python_extract as py_ex
+from .parser import python_relations as py_rel
 from .parser.typescript import ParsedSource, ParseStatus, language_for_path, parse_source
 from .selection.rules import SelectionRules
 from .selection.service import decide_selection
 
 MAX_NODES = 5000
 MAX_EDGES = 20000
-SUPPORTED_PARSE_LANGUAGES = {"typescript", "tsx", "javascript"}
+SUPPORTED_PARSE_LANGUAGES = {"typescript", "tsx", "javascript", "python"}
 
 
 @dataclass
@@ -188,7 +190,10 @@ def build_software_map(
     for path, parsed in parsed_by_path.items():
         if parsed.root is None:
             continue
-        symbols_by_path[path] = ex.extract_symbols(parsed)
+        if parsed.language == "python":
+            symbols_by_path[path] = py_ex.extract_symbols(parsed)
+        else:
+            symbols_by_path[path] = ex.extract_symbols(parsed)
         jsdoc_by_node_id.update(ex.extract_jsdoc_symbols(parsed))
         contracts_by_path[path] = ex.extract_contracts(parsed)
         events_by_path[path] = ex.extract_page_events(parsed)
@@ -220,7 +225,7 @@ def build_software_map(
                     snapshot_id=snapshot_id,
                     kind="method",
                     label=symbol.name,
-                    language="typescript" if path.endswith((".ts", ".tsx")) else "javascript",
+                    language="typescript" if path.endswith((".ts", ".tsx")) else "python" if path.endswith(".py") else "javascript",
                     file_path=path,
                     start_line=symbol.start_line,
                     end_line=symbol.end_line,
@@ -303,6 +308,8 @@ def build_software_map(
     # --- behavior/data edges ---
     import_index = rel.build_import_index(parsed_by_path)
     raw_edges = rel.extract_relation_edges(parsed_by_path, symbols_by_path, import_index)
+    # Python 行为边与 TS/JS 边合并（同一 RawEdge 接口，BEH-* 规则自动生效）
+    raw_edges.extend(py_rel.extract_relation_edges(parsed_by_path, symbols_by_path, import_index))
 
     synthesized_ids: dict[str, str] = {}
 
