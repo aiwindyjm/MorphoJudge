@@ -230,7 +230,9 @@ export function ExplainPanel({
   const [errorText, setErrorText] = useState('')
   const [provider, setProvider] = useState<'fake' | 'ollama' | 'remote'>('fake')
   const canExplain = subject.evidenceIds.length > 0
-  const ollamaAvailable = providers?.providers.find((item) => item.provider === 'ollama')?.available === true
+  const ollamaInfo = providers?.providers.find((item) => item.provider === 'ollama')
+  const ollamaAvailable = ollamaInfo?.available === true
+  const ollamaModels = ollamaInfo?.models ?? []
 
   const run = async () => {
     setState('loading')
@@ -255,7 +257,7 @@ export function ExplainPanel({
   return <section className="explain-panel" aria-live="polite">
     <div className="model-explanation-head">
       <strong>本地模型解释</strong>
-      <span>{provider === 'fake' ? 'Fake Provider（离线演示）' : provider === 'ollama' ? (ollamaAvailable ? 'Ollama · 本地' : 'Ollama · 不可用') : '远程 · 需按次授权'}</span>
+      <span>{provider === 'fake' ? 'Fake Provider（离线演示）' : provider === 'ollama' ? (ollamaAvailable ? `Ollama · ${ollamaInfo?.model ?? '本地'}${ollamaModels.length > 0 ? ` · ${ollamaModels.length} 个模型` : ''}` : `Ollama · 不可用（${ollamaInfo?.note?.slice(0, 40) || '未配置'}）`) : '远程 · 需按次授权'}</span>
     </div>
     <p className="form-hint">解释只引用当前证据，不改确定性图；失败不影响报告。</p>
     <div className="toolbar-row">
@@ -264,6 +266,12 @@ export function ExplainPanel({
         <option value="ollama" disabled={!ollamaAvailable}>Ollama{ollamaAvailable ? '' : '（未配置/不可达）'}</option>
         <option value="remote" disabled>远程（按次授权，待接入确认界面）</option>
       </select>
+      {ollamaAvailable && ollamaModels.length > 0 && (
+        <span className="chip">已发现模型：{ollamaModels.slice(0, 3).join('、')}{ollamaModels.length > 3 ? ` 等 ${ollamaModels.length} 个` : ''}</span>
+      )}
+      {!ollamaAvailable && provider !== 'ollama' && (
+        <span className="page-status">提示：设置 MORPHOJUDGE_OLLAMA_URL 后可使用本地模型</span>
+      )}
       {state === 'idle' && <button className="outline" disabled={!canExplain} onClick={() => void run()}>{canExplain ? '生成本地解释' : '无证据关联，不能解释'}</button>}
       {state === 'loading' && <span className="page-status">生成中…</span>}
       {state === 'failed' && <button className="outline" onClick={() => void run()}>重试</button>}

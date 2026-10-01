@@ -568,6 +568,7 @@ export interface ExplainProviderInfo {
   readonly model: string | null;
   readonly available: boolean;
   readonly note: string;
+  readonly models?: readonly string[];
 }
 
 export interface ExplainProvidersResponse {

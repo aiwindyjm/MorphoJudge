@@ -194,6 +194,16 @@ def list_explanations(
     return [_row_to_payload(row) for row in rows]
 
 
+def ollama_list_models(base_url: str) -> list[str]:
+    """Fetch available model names from Ollama GET /api/tags."""
+    from morphojudge.llm.transport import pin_endpoint, request_pinned
+    endpoint = pin_endpoint(base_url, family="local")
+    status, body, _ = request_pinned(endpoint, method="GET", path="/api/tags", timeout_seconds=5.0)
+    if status == 200 and isinstance(body, dict):
+        return sorted(str(m.get("name", "")) for m in body.get("models", []) if m.get("name"))
+    return []
+
+
 @router.get("/{analysis_id}/explain/providers", response_model=ExplainProvidersResponse)
 def explain_providers(analysis_id: str, request: Request) -> ExplainProvidersResponse:
     repository: AnalysisRepository = request.app.state.repository
@@ -206,12 +216,21 @@ def explain_providers(analysis_id: str, request: Request) -> ExplainProvidersRes
     model = os.environ.get("MORPHOJUDGE_OLLAMA_MODEL", "qwen2.5-coder")
     if url:
         ok, reason = OllamaProvider(url, model).available()
+        models: list[str] = []
+        if ok:
+            try:
+                models = ollama_list_models(url)
+            except Exception:
+                models = []
         providers.append(
-            {"provider": "ollama", "model": model, "available": ok, "note": "" if ok else reason}
+            {"provider": "ollama", "model": model, "available": ok,
+             "note": "" if ok else reason, "models": models}
         )
     else:
         providers.append(
-            {"provider": "ollama", "model": None, "available": False, "note": "not configured (MORPHOJUDGE_OLLAMA_URL unset)"}
+            {"provider": "ollama", "model": None, "available": False,
+             "note": "not configured (set MORPHOJUDGE_OLLAMA_URL, e.g. http://host.docker.internal:11434)",
+             "models": []}
         )
     providers.append(
         {"provider": "remote", "model": None, "available": True, "note": "requires one-time consent per analysis"}

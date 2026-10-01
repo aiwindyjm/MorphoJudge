@@ -196,6 +196,20 @@ def evaluate_rules(
         outputs.analyzer_errors.append(f"dependency_rules_failed:{type(exc).__name__}")
 
     try:
+        # Python 依赖分析：requirements.txt / Pipfile.lock（Batch-09 / DEP-002）
+        from ..rules import python_dependency
+        py_changes = python_dependency.analyze_python_dependencies(
+            repo, identity.base_commit, identity.target_commit, sid, rules
+        )
+        if py_changes:
+            if outputs.dependency_report is None:
+                outputs.dependency_report = dependency_rules.DependencyReport()
+            outputs.dependency_report.changes.extend(py_changes)
+            outputs.dependency_report.notes.append("python_dependencies_analyzed")
+    except Exception as exc:  # noqa: BLE001
+        outputs.analyzer_errors.append(f"python_dependency_failed:{type(exc).__name__}")
+
+    try:
         outputs.consistency_records = consistency_rules.analyze_consistency(target_res)
     except Exception as exc:  # noqa: BLE001
         outputs.analyzer_errors.append(f"consistency_rules_failed:{type(exc).__name__}")

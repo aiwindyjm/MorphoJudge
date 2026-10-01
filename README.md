@@ -107,6 +107,37 @@ docker compose exec -T daemon pytest tests/test_analysis_slice.py -q
 
 The analysis integration is currently a Python service exercised through tests—not a CLI or Web upload flow. The fixture initializer verifies a bundled Git history and checksum, requires no network, and refuses to overwrite a changed fixture. Details: [fixture distribution](tests/fixtures/distribution/README.md).
 
+### Optional: local model explanations with Ollama
+
+MorphoJudge can call a locally running [Ollama](https://ollama.com) model to explain findings. This is entirely optional — the deterministic analysis and report work without any model.
+
+**Option A: Use the bundled Ollama container (recommended for first-time setup)**
+
+```sh
+# Start Ollama alongside web and daemon (downloads the image on first run).
+docker compose --profile ollama up -d ollama
+
+# Pull a model (first time only; ~4 GB download).
+docker compose exec ollama ollama pull qwen2.5-coder
+
+# Point the daemon at the Ollama container and restart it.
+export MORPHOJUDGE_OLLAMA_URL=http://ollama:11434
+docker compose up -d daemon
+```
+
+**Option B: Use an existing Ollama on your host**
+
+If Ollama already runs on your machine (port 11434):
+
+```sh
+export MORPHOJUDGE_OLLAMA_URL=http://host.docker.internal:11434
+docker compose up -d daemon
+```
+
+Once configured, the Web UI's explanation panel will list available models and let you generate explanations. If Ollama is not configured or unreachable, the UI shows a clear status message and the rest of the report remains fully functional.
+
+**Privacy**: model requests stay on your machine; MorphoJudge does not send code to any cloud service. The remote provider is disabled by default and requires per-analysis explicit consent.
+
 ### Browser end-to-end tests (real daemon, real fixture)
 
 A dedicated Playwright container drives the real Web UI against the real daemon and the restored fixture. It runs in an isolated Compose project with its own volumes and a loopback-only port (here `3025`), never touches the development database, and never mounts private data:

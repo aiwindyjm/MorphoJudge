@@ -257,7 +257,7 @@ def plan_analysis_selection(
 # 该用途不改变源码选择结果（调用 decide_selection 的路径保持原样）。
 # ---------------------------------------------------------------------------
 
-DEPENDENCY_FILE_WHITELIST = ("package.json", "pnpm-lock.yaml")
+DEPENDENCY_FILE_WHITELIST = ("package.json", "pnpm-lock.yaml", "requirements.txt", "Pipfile.lock")
 MAX_DEPENDENCY_FILE_BYTES = 2_000_000
 MAX_DEPENDENCY_TOTAL_BYTES = 8_000_000
 
