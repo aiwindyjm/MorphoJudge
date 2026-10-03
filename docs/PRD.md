@@ -1,8 +1,8 @@
 # MorphoJudge 产品需求文档（PRD）
 
-版本：`0.24-draft`
+版本：`0.25-draft`
 状态：公开评审草案  
-更新日期：2026-09-16
+更新日期：2026-09-28
 唯一产品需求基线：本文件。实现、Issue、架构和路线图必须与本文件联动；冲突时先记录冲突，不静默选择。
 
 ## 1. 产品目标
@@ -82,6 +82,9 @@ flowchart TD
 | FR-011 | 软件关系地图 | 页面、功能、方法、契约、数据/外部服务的有向关系；节点和边均有来源；支持筛选、点选和反向影响追踪 |
 | FR-012 | 注释与实现一致性 | 对参数、返回契约、显式副作用声明进行规则检查；并排展示声明和实现证据；未知项不得判为一致 |
 | FR-013 | 功能追溯 | 页面事件经方法、契约到数据的对应表；业务功能来自显式需求映射或人工确认，名称推测不作为事实 |
+| FR-014 | Python 语言分析 | Tree-sitter Python 解析；网络（requests/urllib/httpx）、Shell（subprocess/os）、文件（open/os/shutil）行为检测；权限装饰器检测；与 TS/JS 共用同一管线、证据锚定和覆盖语义 |
+| FR-015 | Ollama 配置优化 | MORPHOJUDGE_OLLAMA_URL 一键配置；可选 Compose profile；Provider 状态 UI 显示已配置模型列表（自动发现）；README 提供标准配置说明 |
+| FR-016 | 依赖分析增强 | 支持 requirements.txt（PEP 508）和 Pipfile.lock（JSON）；DEP-ADD/REMOVE/VERSION-CHANGE 规则沿用；零安装、零网络 |
 
 ## 5. 非功能需求
 
@@ -189,6 +192,7 @@ Review { finding_id, state, note, updated_at }
 | 0.22-draft | 2026-09-16 | 根据实施可行性审计，将路线调整为 7 个可运行 Batch：首批包含 Docker daemon 骨架、TypeScript fixture、Git Snapshot、Diff 与 Coverage；修正任务依赖和未定义编号，确立批次交付后必须停止并等待 Codex 审计 |
 | 0.23-draft | 2026-09-16 | 按用户反馈改为完整能力闭环交付：Task ID 仅作批次内部追溯，取消逐 Task 人工交接；施工前集中确定边界矩阵，批次内持续实现与自测，交付后独立验收；返工按根因一次性处理，按变更范围复核，避免重复全局扫描 |
 | 0.24-draft | 2026-09-16 | 用户确认首次公开发布到 aiwindyjm/MorphoJudge：英文首页与简体中文 README、原创双语图解及真实示例界面截图；保留 MIT 和提交历史；以 Git bundle 和专用 Docker volume 提供可复现 fixture，排除真实私有资料；开源不等于完整 v0.1 或 Batch-03 独立验收通过 |
+| 0.25-draft | 2026-09-28 | v0.2 增量：新增 FR-014 Python 语言分析、FR-015 Ollama 配置优化、FR-016 依赖分析增强（pip）；§12.3 扩展支持语言为 TypeScript/JavaScript/Python |
 | 0.21-draft | 2026-09-15 | 新增可执行实施文档体系：总体策略、版本路线图、任务规格、架构决策、契约冻结、Coding AI 协议和 Codex A0-A7 独立验收；明确真实纵向闭环优先于孤立模块交付 |
 
 ## 10. 联动索引
@@ -345,8 +349,10 @@ PRD 与代码、测试、Issue 或路线图不一致时，优先修正文档联�
 
 ### 12.3 确定性分析算法与能力边界
 
+支持语言：TypeScript、JavaScript、Python（v0.2 扩展）。各语言共用同一 Selection → Parse → IR → Rules → Evidence → Finding 管线；语言差异仅体现在 Tree-sitter 语法模块和规则族文件。
+
 1. 解析受支持文件并建立符号、导入、路由、事件、方法签名和注释索引；保留错误与跳过项。
-2. 使用语言适配器解析直接调用、引用别名和类型；Tree-sitter 提供语法树，不能单独替代类型解析。TypeScript 类型检查器或等价语言工具作为后续适配选项，不执行目标程序或其插件。
+2. 使用语言适配器解析直接调用、引用别名和类型；Tree-sitter 提供语法树，不能单独替代类型解析。TypeScript 类型检查器或等价语言工具作为后续适配选项，不执行目标程序或其插件。Python 行为规则（网络 requests/urllib/httpx、Shell subprocess/os、文件 open/os/shutil）与 TS/JS 共用 BEH-NETWORK/BEH-SHELL/BEH-FILE 语义。
 3. 以关系边构建正向/反向邻接表；BFS/DFS 查询依赖和调用者，使用 visited 集合终止递归/环；最坏遍历复杂度 O(V+E)，大图设节点/深度预算并显示截断。
 4. 对显式结构化声明与提取事实运行版本化规则：注释参数名缺失/多余，返回类型或必填字段冲突，声明无副作用但发现文件/网络行为。有限调用图的副作用传播可用不动点迭代；不可解析的调用必须传播未知，不能默认无副作用。
 5. 对基线/目标索引比较节点及边，沿反向边定位可能受影响页面。候选边只能得到“可能影响”。

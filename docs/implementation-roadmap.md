@@ -65,6 +65,20 @@ PRD 0.23：Batch 是完整能力交付单位，Task 是内部追溯项，不逐�
 产出：Markdown/JSON、人工复核和完整验收报告。
 发布门槛：Codex A0-A7 通过，UI/API/导出事实一致，安全边界和覆盖限制完整记录。
 
+## Batch-08 / v0.2-alpha：Python 语言分析
+
+验收状态：**PASSED（2026-09-28，限本批交付范围）**。提交 `0bd12db`。
+Tree-sitter Python 语法适配、符号/导入提取、行为边提取（网络/进程/文件模式与 TS 共用 BEH-* 规则）；19 项测试 + 混合仓库验证 + 371 pytest 全套回归零破坏。
+
+任务：PY-001、PY-002、PY-003。
+
+## Batch-09 / v0.2-alpha：Ollama 配置 + pip 依赖
+
+验收状态：**PASSED（2026-09-28，限本批交付范围）**。提交 `e0e41da`。
+Ollama compose profile + 模型自动发现 + README 配置指南；requirements.txt / Pipfile.lock 解析与 DEP-ADD/REMOVE/VERSION-CHANGE 检测；18 项测试 + 389 pytest 全套回归零破坏。
+
+任务：OL-001、DEP-002。
+
 ## 暂不进入路线
 
-完整多语言、图数据库、自动修复、SaaS、CI/IDE 集成、生产部署、云端默认模型和复杂 Agent。
+完整多语言（Go/Rust 待 Python 验证后评估）、图数据库、自动修复、SaaS、CI/IDE 集成、生产部署、云端默认模型和复杂 Agent。报告筛选（FR-017）推迟至 v0.3。
